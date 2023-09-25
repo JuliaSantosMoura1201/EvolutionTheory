@@ -24,20 +24,37 @@ class PA:
         y,
         capacity = 0,
         coverage_radius = 0,
-        clients = []
+        clients = None,
+        enabled = False
     ):
-        # Não sei de onde vem as coordenadas do PA.
         self.x = x
         self.y = y
         self.capacity = capacity
         self.coverage_radius = coverage_radius
-        self.clients = clients
-        self.enabled = False
+        self.clients = [] if clients is None else clients
+        self.enabled = enabled
 
-    def updtdateClientsList(self, client):
+    def updateClientsList(self, client):
         self.capacity += client.band_width
         self.clients.append(client)
         self.enabled = not self.clients
+
+    def _getClientWithBiggestDistance(self, clients):
+        return sorted(clients, key = lambda client: getDistanceBetweenPAAndClient(self, client))[-1]
+
+    def withNewClients(self, *clients):
+        if not clients:
+            return self
+        newClients = self.clients + list(clients)
+        return PA(
+            x = self.x,
+            y = self.y,
+            coverage_radius = self._getClientWithBiggestDistance(newClients),
+            capacity = self.capacity + sum([client.band_width for client in clients]),
+            clients = newClients,
+            enabled = True
+        )
+        
 
 def factoryPAs():
     PAs = []
@@ -48,18 +65,19 @@ def factoryPAs():
     return PAs
 
 def initialConstructiveHeuristic(PAs, clients):
+    # ordenar os clientes pelo band width antes
     clientsIndex = 0
-    updatedPAs = PAs
-    for PA in updatedPAs:
+    updatedPAs = []
+    for paIndex in range(len(PAs)):
+        newPA = PAs[paIndex]
         while clientsIndex < len(clients):
-            if(PA.capacity + clients[clientsIndex].band_width >= PA_MAX_CAPACITY):
+            if(newPA.capacity + clients[clientsIndex].band_width >= PA_MAX_CAPACITY):
                 break
-            PA.updtdateClientsList(clients[clientsIndex])
+            newPA = newPA.withNewClients(clients[clientsIndex])
             clientsIndex += 1
-        print(f"PA capacity: {PA.capacity}")
-        print(f"PA clients amount: {len(PA.clients)}")
-        if clientsIndex == len(clients):
-            break
+        print(f"PA capacity: {newPA.capacity}")
+        print(f"PA clients amount: {len(newPA.clients)}")
+        updatedPAs.append(newPA)
     return updatedPAs
 
 def printPAs(PAs):
