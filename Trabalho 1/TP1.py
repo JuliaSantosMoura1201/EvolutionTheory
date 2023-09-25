@@ -24,8 +24,7 @@ class PA:
         y,
         capacity = 0,
         coverage_radius = 0,
-        clients = [],
-        enabled = False
+        clients = []
     ):
         # Não sei de onde vem as coordenadas do PA.
         self.x = x
@@ -33,17 +32,12 @@ class PA:
         self.capacity = capacity
         self.coverage_radius = coverage_radius
         self.clients = clients
-        self.enabled = enabled
+        self.enabled = False
 
-def factoryPAWithNewClient(oldPA, client):
-    return PA(
-        oldPA.x, 
-        oldPA.y,
-        oldPA.capacity + client.band_width,
-        oldPA.coverage_radius, # igual ao cliente de maior distância
-        oldPA.clients + [client],
-        True
-    )
+    def updtdateClientsList(self, client):
+        self.capacity += client.band_width
+        self.clients.append(client)
+        self.enabled = not self.clients
 
 def factoryPAs():
     PAs = []
@@ -53,22 +47,19 @@ def factoryPAs():
             PAs.append(newPA)
     return PAs
 
-
 def initialConstructiveHeuristic(PAs, clients):
     clientsIndex = 0
-    updatedPAs = []
-
-    for PA in PAs:
-        newPA = PA
+    updatedPAs = PAs
+    for PA in updatedPAs:
         while clientsIndex < len(clients):
-            # PA is on full capacity, therefore shoul go to the next one
             if(PA.capacity + clients[clientsIndex].band_width >= PA_MAX_CAPACITY):
                 break
-            newPA = factoryPAWithNewClient(PA, clients[clientsIndex])
+            PA.updtdateClientsList(clients[clientsIndex])
             clientsIndex += 1
-        updatedPAs.append(newPA)
-        print(f"PA capacity: {newPA.capacity}")
-        print(f"PA clients amount: {len(newPA.clients)}")
+        print(f"PA capacity: {PA.capacity}")
+        print(f"PA clients amount: {len(PA.clients)}")
+        if clientsIndex == len(clients):
+            break
     return updatedPAs
 
 def printPAs(PAs):
