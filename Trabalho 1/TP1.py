@@ -73,7 +73,6 @@ def factoryPAs():
             PAs.append(newPA)
     return PAs
 
-
 def minimizePAsHeuristic(PAs, clients):
     def selectClientsUntilCapacity(clients):
         capacity = 0
@@ -90,18 +89,14 @@ def minimizePAsHeuristic(PAs, clients):
 
     def selectClientsByDistance(PA, clients):
         selected, unselected = [], []
-        
-        clientsAndTheirDistance = list(map(lambda client: (client,  getDistanceBetweenPAAndClient(PA, client)), clients))
-        sortedClientsAndTheirDistance  = sorted(clientsAndTheirDistance, key = lambda clientAndItsDistance: clientAndItsDistance[1], reverse = True)
 
-        for sortedClientsAndItsDistance in sortedClientsAndTheirDistance:
-            if sortedClientsAndItsDistance[1] < PA_MAX_COVERAGE_RADIUS:
-                selected.append(sortedClientsAndItsDistance[0])
+        for client in clients:
+            if getDistanceBetweenPAAndClient(PA, client) < PA_MAX_COVERAGE_RADIUS:
+                selected.append(client)
             else:
-                unselected.append(sortedClientsAndItsDistance[0])
+                unselected.append(client)
 
         return selected, unselected
-
 
     def allocateClientesToPAs(PAsAndClients, currentPA):
         PAs, unnalocatedClients = PAsAndClients
@@ -111,7 +106,10 @@ def minimizePAsHeuristic(PAs, clients):
         newPA = currentPA.withNewClients(selectedClients)
         return ([*PAs, newPA], restClients + tooFarClients)
 
-    return reduce(allocateClientesToPAs, PAs, ([], clients))
+    def sortPAsForCloseClientsCount(PAs, clients):        
+        return sorted(PAs, key = lambda pa: len(selectClientsByDistance(pa, clients)[0]), reverse = True)
+        
+    return reduce(allocateClientesToPAs, sortPAsForCloseClientsCount(PAs, clients), ([], clients))
 
 def printPAs(PAs):
     for PA in PAs:
@@ -141,13 +139,6 @@ def getDistanceBetweenPAAndClient(PA, client):
 
 def filterPAsEnabled(PAs):
     return list(filter(lambda PA: PA.capacity != 0, PAs))
-
-
-def minimizeTotalDistanceSum(PAs, clients):
-    totalDistance = 0
-    for PA in PAs:
-        for client in clients:
-            distance = getDistanceBetweenPAAndClient(PA, client)
 
 def main():
     clients = getClients()
