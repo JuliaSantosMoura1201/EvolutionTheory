@@ -1,6 +1,7 @@
 import rvns
 import csv
 import math
+from functools import reduce
 
 CLIENTS_MIN_COVERAGE = 0.95
 
@@ -40,21 +41,29 @@ class PA:
         self.enabled = not self.clients
 
     def _getClientWithBiggestDistance(self, clients):
+        if not clients:
+            return 0
         return sorted(clients, key = lambda client: getDistanceBetweenPAAndClient(self, client))[-1]
+
+    def calculateCapacity(clients):
+        capacity = 0
+        for client in clients:
+            capacity += client.band_width
+        return capacity
 
     def withNewClients(self, *clients):
         if not clients:
             return self
-        newClients = self.clients + list(clients)
+        newClients = self.clients + list(*clients)
         return PA(
             x = self.x,
             y = self.y,
             coverage_radius = self._getClientWithBiggestDistance(newClients),
-            capacity = self.capacity + sum([client.band_width for client in clients]),
+            capacity = self.capacity + sum([client.band_width for client in newClients]),
             clients = newClients,
             enabled = True
         )
-        
+
 
 def factoryPAs():
     PAs = []
@@ -64,26 +73,50 @@ def factoryPAs():
             PAs.append(newPA)
     return PAs
 
-def initialConstructiveHeuristic(PAs, clients):
-    # ordenar os clientes pelo band width antes
-    clientsIndex = 0
-    updatedPAs = []
-    for paIndex in range(len(PAs)):
-        newPA = PAs[paIndex]
-        while clientsIndex < len(clients):
-            if(newPA.capacity + clients[clientsIndex].band_width >= PA_MAX_CAPACITY):
-                break
-            newPA = newPA.withNewClients(clients[clientsIndex])
-            clientsIndex += 1
-        print(f"PA capacity: {newPA.capacity}")
-        print(f"PA clients amount: {len(newPA.clients)}")
-        updatedPAs.append(newPA)
-    return updatedPAs
+
+def minimizePAsHeuristic(PAs, clients):
+    def selectClientsUntilCapacity(clients):
+        capacity = 0
+        selected, unselected = [], []
+
+        for client in clients:
+            if capacity + client.band_width > PA_MAX_CAPACITY:
+                unselected.append(client)
+            else:
+                selected.append(client)
+                capacity += client.band_width
+
+        return selected, unselected
+
+    def selectClientsByDistance(PA, clients):
+        selected, unselected = [], []
+        
+        clientsAndTheirDistance = list(map(lambda client: (client,  getDistanceBetweenPAAndClient(PA, client)), clients))
+        sortedClientsAndTheirDistance  = sorted(clientsAndTheirDistance, key = lambda clientAndItsDistance: clientAndItsDistance[1], reverse = True)
+
+        for sortedClientsAndItsDistance in sortedClientsAndTheirDistance:
+            if sortedClientsAndItsDistance[1] < PA_MAX_COVERAGE_RADIUS:
+                selected.append(sortedClientsAndItsDistance[0])
+            else:
+                unselected.append(sortedClientsAndItsDistance[0])
+
+        return selected, unselected
+
+
+    def allocateClientesToPAs(PAsAndClients, currentPA):
+        PAs, unnalocatedClients = PAsAndClients
+
+        candidateClients, tooFarClients = selectClientsByDistance(currentPA, unnalocatedClients)
+        selectedClients, restClients = selectClientsUntilCapacity(candidateClients)
+        newPA = currentPA.withNewClients(selectedClients)
+        return ([*PAs, newPA], restClients + tooFarClients)
+
+    return reduce(allocateClientesToPAs, PAs, ([], clients))
 
 def printPAs(PAs):
     for PA in PAs:
-        print(f"PA capacity: {PA.capacity}", end = '')
-        print(f"PA amount of clients: {len(PA.clients)}", end = '')
+        print(f"PA capacity: {PA.capacity}")
+        print(f"PA amount of clients: {len(PA.clients)}")
 
 def getClients(): 
     clients = []
@@ -101,22 +134,16 @@ def readClients(clients):
     for client in clients:
         print(f"{client.x}\n")
 
-# objective function number 1
-def getAmountOfEnabledPAs(PAs):
-    numberOfPAsEnabled = 0
-    for PA in PAs:
-        if PA.enabled:
-            numberOfPAsEnabled = numberOfPAsEnabled + 1
-    return numberOfPAsEnabled
-
 def getDistanceBetweenPAAndClient(PA, client):
     xsDistance = PA.x - client.x
     ysDistance = PA.y - client.y
     return math.sqrt( xsDistance**2 + ysDistance**2 )
 
+def filterPAsEnabled(PAs):
+    return list(filter(lambda PA: PA.capacity != 0, PAs))
 
-# objective function number 2
-def getTotalDistanceBewtweenEnablePAsAndClients(PAs, clients):
+
+def minimizeTotalDistanceSum(PAs, clients):
     totalDistance = 0
     for PA in PAs:
         for client in clients:
@@ -129,9 +156,10 @@ def main():
     print(f"Number of clients: {numberOfClients}\n")
     
     PAs = factoryPAs()
-    updatedPAs = initialConstructiveHeuristic(PAs, clients)
+    updatedPAs = minimizePAsHeuristic(PAs, clients)
 
-    #printPAs(updatedPAs)
+    PAsEnabled = filterPAsEnabled(updatedPAs[0])
+    print(f"Number of PAs: {len(PAsEnabled)}\n")
 
 
 main()
