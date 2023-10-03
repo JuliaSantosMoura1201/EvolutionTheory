@@ -188,9 +188,24 @@ def areEnabledPAsClientInsideMaxRange(PAs):
     enablePAs = filterPAsEnabled(PAs)
     return all(
         getDistanceBetweenPAAndClient(pa, client) <= PA_MAX_COVERAGE_RADIUS
-        for pa in enabledPAs
+        for pa in enablePAs
         for client in pa.clients
     )
+
+#R4 
+def eachClientIsOnlyInOnePA(PAs):
+    enablePAs = filterPAsEnabled(PAs)
+    selectedClients = []
+
+    for pa in enablePAs:
+        selectedClients += pa.clients
+
+    for client in selectedClients:
+        count = selectedClients.count(client)
+        if(count > 1):
+            return False
+    
+    return True
 
 def fobjMinAmountOfEnabledPAs(PAs):
     enabledPAs = filterPAsEnabled(PAs)
@@ -210,7 +225,8 @@ def main():
     print(f"Total distance: {getTotalDistanceSumBetweenPAsAndClients(PAsEnabledFromFirstHeuristic)}\n")
     print(f"R1: {isMinClientCoverageAttended(clients, PAsEnabledFromFirstHeuristic)}\n")
     print(f"R2: {areEnabledPAsCapacityBellowMax(PAsFromFirstHeuristic[0])}\n")
-    print(f"R3: {areEnabledPAsCapacityBellowMax(PAsFromFirstHeuristic[0])}\n")
+    print(f"R3: {areEnabledPAsClientInsideMaxRange(PAsFromFirstHeuristic[0])}\n")
+    print(f"R4: {eachClientIsOnlyInOnePA(PAsFromFirstHeuristic[0])}\n")
 
     PAsFromSecondHeuristic = minimizeTotalDistanceBetwenEnabledPAsAndClients(PAs, clients)
     PAsEnabledFromSecondHeuristic = filterPAsEnabled(PAsFromSecondHeuristic[0])
@@ -218,7 +234,8 @@ def main():
     print(f"Total distance: {getTotalDistanceSumBetweenPAsAndClients(PAsEnabledFromSecondHeuristic)}\n")
     print(f"R1: {isMinClientCoverageAttended(clients, PAsEnabledFromSecondHeuristic)}\n")
     print(f"R2: {areEnabledPAsCapacityBellowMax(PAsFromSecondHeuristic[0])}\n")
-    print(f"R3: {areEnabledPAsCapacityBellowMax(PAsFromSecondHeuristic[0])}\n")
+    print(f"R3: {areEnabledPAsClientInsideMaxRange(PAsFromSecondHeuristic[0])}\n")
+    print(f"R4: {eachClientIsOnlyInOnePA(PAsFromSecondHeuristic[0])}\n")
 
     
 
