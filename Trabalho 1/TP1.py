@@ -73,8 +73,7 @@ def factoryPAs():
             PAs.append(newPA)
     return PAs
 
-def minimizePAsHeuristic(PAs, clients):
-    def selectClientsUntilCapacity(clients):
+def selectClientsUntilCapacity(clients):
         capacity = 0
         selected, unselected = [], []
 
@@ -87,28 +86,51 @@ def minimizePAsHeuristic(PAs, clients):
 
         return selected, unselected
 
-    def selectClientsByDistance(PA, clients):
-        selected, unselected = [], []
+def selectClientsByDistance(PA, clients):
+    selected, unselected = [], []
 
-        for client in clients:
-            if getDistanceBetweenPAAndClient(PA, client) < PA_MAX_COVERAGE_RADIUS:
-                selected.append(client)
-            else:
-                unselected.append(client)
+    for client in clients:
+        if getDistanceBetweenPAAndClient(PA, client) < PA_MAX_COVERAGE_RADIUS:
+            selected.append(client)
+        else:
+            unselected.append(client)
 
-        return selected, unselected
+    return selected, unselected
 
-    def allocateClientesToPAs(PAsAndClients, currentPA):
-        PAs, unnalocatedClients = PAsAndClients
+def allocateClientesToPAs(PAsAndClients, currentPA):
+    PAs, unnalocatedClients = PAsAndClients
 
-        candidateClients, tooFarClients = selectClientsByDistance(currentPA, unnalocatedClients)
-        selectedClients, restClients = selectClientsUntilCapacity(candidateClients)
-        newPA = currentPA.withNewClients(selectedClients)
-        return ([*PAs, newPA], restClients + tooFarClients)
+    candidateClients, tooFarClients = selectClientsByDistance(currentPA, unnalocatedClients)
+    selectedClients, restClients = selectClientsUntilCapacity(candidateClients)
+    newPA = currentPA.withNewClients(selectedClients)
+    return ([*PAs, newPA], restClients + tooFarClients)
 
+def minimizeTotalDistanceBetwenEnabledPAsAndClients(PAs, clients):
+    
+    def getSelectedClientsTotalDistance(PA, clients):
+            selected, unselected = [], []
+            totalDistance = 0
+
+            for client in clients:
+                distance = getDistanceBetweenPAAndClient(PA, client)
+                if distance < PA_MAX_COVERAGE_RADIUS:
+                    totalDistance += distance
+                    selected.append(client)
+                else:
+                    unselected.append(client)
+
+            return totalDistance
+    
+    def sortPAsForMinDistance(PAs, clients):
+        return sorted(PAs, key = lambda pa: getSelectedClientsTotalDistance(pa, clients), reverse = True)
+    
+    return reduce(allocateClientesToPAs, sortPAsForMinDistance(PAs, clients), ([], clients))
+
+def minimizePAsHeuristic(PAs, clients):
+    
     def sortPAsForCloseClientsCount(PAs, clients):        
-        return sorted(PAs, key = lambda pa: len(selectClientsByDistance(pa, clients)[0]), reverse = True)
-        
+            return sorted(PAs, key = lambda pa: len(selectClientsByDistance(pa, clients)[0]), reverse = True)
+    
     return reduce(allocateClientesToPAs, sortPAsForCloseClientsCount(PAs, clients), ([], clients))
 
 def printPAs(PAs):
@@ -147,10 +169,17 @@ def main():
     print(f"Number of clients: {numberOfClients}\n")
     
     PAs = factoryPAs()
-    updatedPAs = minimizePAsHeuristic(PAs, clients)
 
-    PAsEnabled = filterPAsEnabled(updatedPAs[0])
-    print(f"Number of PAs: {len(PAsEnabled)}\n")
+    PAsFromFirstHeuristic = minimizePAsHeuristic(PAs, clients)
+    PAsEnabledFromFirstHeuristic = filterPAsEnabled(PAsFromFirstHeuristic[0])
+    print(f"Number of PAs: {len(PAsEnabledFromFirstHeuristic)}\n")
+
+    PAsFromSecondHeuristic = minimizeTotalDistanceBetwenEnabledPAsAndClients(PAs, clients)
+    PAsEnabledFromSecondHeuristic = filterPAsEnabled(PAsFromSecondHeuristic[0])
+    print(f"Number of PAs: {len(PAsEnabledFromSecondHeuristic)}\n")
+    #print(f"Number of PAs: {len(PAsEnabledFromSecondHeuristic)}\n")
+
+    
 
 
 main()
