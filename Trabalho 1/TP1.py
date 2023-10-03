@@ -162,6 +162,9 @@ def getDistanceBetweenPAAndClient(PA, client):
 def filterPAsEnabled(PAs):
     return list(filter(lambda PA: PA.capacity != 0, PAs))
 
+def getTotalDistanceSumBetweenPAsAndClients(PAs):
+    return sum(sum(getDistanceBetweenPAAndClient(pa, client) for client in pa.clients) for pa in PAs)
+
 def main():
     clients = getClients()
 
@@ -173,11 +176,12 @@ def main():
     PAsFromFirstHeuristic = minimizePAsHeuristic(PAs, clients)
     PAsEnabledFromFirstHeuristic = filterPAsEnabled(PAsFromFirstHeuristic[0])
     print(f"Number of PAs: {len(PAsEnabledFromFirstHeuristic)}\n")
+    print(f"Total distance: {getTotalDistanceSumBetweenPAsAndClients(PAsEnabledFromFirstHeuristic)}\n")
 
     PAsFromSecondHeuristic = minimizeTotalDistanceBetwenEnabledPAsAndClients(PAs, clients)
     PAsEnabledFromSecondHeuristic = filterPAsEnabled(PAsFromSecondHeuristic[0])
     print(f"Number of PAs: {len(PAsEnabledFromSecondHeuristic)}\n")
-    #print(f"Number of PAs: {len(PAsEnabledFromSecondHeuristic)}\n")
+    print(f"Total distance: {getTotalDistanceSumBetweenPAsAndClients(PAsEnabledFromSecondHeuristic)}\n")
 
     
 
