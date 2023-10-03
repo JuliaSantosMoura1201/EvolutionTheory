@@ -207,6 +207,11 @@ def eachClientIsOnlyInOnePA(PAs):
     
     return True
 
+#R5
+def isAmountOfEnabledPAsBellowAvailableQuatity(PAs):
+    enabledPAs = filterPAsEnabled(PAs)
+    return len(enabledPAs) <= MAX_AMOUNT_OF_PAS
+
 def fobjMinAmountOfEnabledPAs(PAs):
     enabledPAs = filterPAsEnabled(PAs)
     return len(enabledPAs)
@@ -227,6 +232,7 @@ def main():
     print(f"R2: {areEnabledPAsCapacityBellowMax(PAsFromFirstHeuristic[0])}\n")
     print(f"R3: {areEnabledPAsClientInsideMaxRange(PAsFromFirstHeuristic[0])}\n")
     print(f"R4: {eachClientIsOnlyInOnePA(PAsFromFirstHeuristic[0])}\n")
+    print(f"R5: {isAmountOfEnabledPAsBellowAvailableQuatity(PAsFromFirstHeuristic[0])}\n")
 
     PAsFromSecondHeuristic = minimizeTotalDistanceBetwenEnabledPAsAndClients(PAs, clients)
     PAsEnabledFromSecondHeuristic = filterPAsEnabled(PAsFromSecondHeuristic[0])
@@ -236,6 +242,7 @@ def main():
     print(f"R2: {areEnabledPAsCapacityBellowMax(PAsFromSecondHeuristic[0])}\n")
     print(f"R3: {areEnabledPAsClientInsideMaxRange(PAsFromSecondHeuristic[0])}\n")
     print(f"R4: {eachClientIsOnlyInOnePA(PAsFromSecondHeuristic[0])}\n")
+    print(f"R5: {isAmountOfEnabledPAsBellowAvailableQuatity(PAsFromSecondHeuristic[0])}\n")
 
     
 
