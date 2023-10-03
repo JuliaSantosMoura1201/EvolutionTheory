@@ -165,6 +165,20 @@ def filterPAsEnabled(PAs):
 def getTotalDistanceSumBetweenPAsAndClients(PAs):
     return sum(sum(getDistanceBetweenPAAndClient(pa, client) for client in pa.clients) for pa in PAs)
 
+#R1
+def isMinClientCoverageAttended(clients, PAs):
+    selectedClients = set()
+
+    for pa in PAs:
+        selectedClients.update(pa.clients)
+    
+    perentageOfClientsAttended = len(selectedClients)/len(clients)
+    return perentageOfClientsAttended >= CLIENTS_MIN_COVERAGE
+
+def fobjMinAmountOfEnabledPAs(PAs):
+    enabledPAs = filterPAsEnabled(PAsFromFirstHeuristic[0])
+    return len(enabledPAs)
+
 def main():
     clients = getClients()
 
@@ -177,11 +191,15 @@ def main():
     PAsEnabledFromFirstHeuristic = filterPAsEnabled(PAsFromFirstHeuristic[0])
     print(f"Number of PAs: {len(PAsEnabledFromFirstHeuristic)}\n")
     print(f"Total distance: {getTotalDistanceSumBetweenPAsAndClients(PAsEnabledFromFirstHeuristic)}\n")
+    print(f"R1: {isMinClientCoverageAttended(clients, PAsEnabledFromFirstHeuristic)}\n")
+
 
     PAsFromSecondHeuristic = minimizeTotalDistanceBetwenEnabledPAsAndClients(PAs, clients)
     PAsEnabledFromSecondHeuristic = filterPAsEnabled(PAsFromSecondHeuristic[0])
     print(f"Number of PAs: {len(PAsEnabledFromSecondHeuristic)}\n")
     print(f"Total distance: {getTotalDistanceSumBetweenPAsAndClients(PAsEnabledFromSecondHeuristic)}\n")
+    print(f"R1: {isMinClientCoverageAttended(clients, PAsEnabledFromSecondHeuristic)}\n")
+
 
     
 
