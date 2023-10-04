@@ -113,7 +113,9 @@ def filterPAsEnabled(PAs):
 
 def factoryInitialSolution(problemDefinition):
     solution = Solution()
-    solution.currentSolution = filterPAsEnabled(problemDefinition.PAs)
+    initialPAsList = minimizePAsHeuristic(problemDefinition)
+    solution.currentSolution = filterPAsEnabled(initialPAsList)
+    print("Initial Solution fitness", len(solution.currentSolution))
     return solution
 
 def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
@@ -180,28 +182,41 @@ def amountOfReplicatedClients(PAs):
 def amountOfPAsAboveMaxAmount(PAs, problemDefinition):
     return len(PAs)  - problemDefinition.maxAmountOfPAs
 
-def minimizePAsHeuristic(PAs, clients):
+def minimizePAsHeuristic(problemDefinition):
     
-    def sortPAsForCloseClientsCount(PAs, clients):        
-            return sorted(PAs, key = lambda pa: len(selectClientsByDistance(pa, clients)[0]), reverse = True)
+    def sortPAsForCloseClientsCount(PAs, clients, problemDefinition):        
+            return sorted(PAs, key = lambda pa: len(selectClientsByDistance(pa, clients, problemDefinition)[0]), reverse = True)
     
-    
-    return reduce(allocateClientesToPAs, sortPAsForCloseClientsCount(PAs, clients), ([], clients))
+    finalPAsList = []
+    candidatePAs = sortPAsForCloseClientsCount(problemDefinition.PAs, problemDefinition.clients, problemDefinition)
+    unnalocatedClients = [*problemDefinition.clients]
+    while len(unnalocatedClients):
+        # Pega o primeiro PA pq ele sempre é o que tem mais clientes no raio
+        currentPa = candidatePAs.pop(0)
+        # Aloca o máximo de clientes possíveis no PA atual
+        finalPAsList, unnalocatedClients = allocateClientesToPAs((finalPAsList, unnalocatedClients), currentPa, problemDefinition)
+        # Reordena os PAs em função da quantidade de clientes no raio
+        candidatePAs = sortPAsForCloseClientsCount(candidatePAs, unnalocatedClients, problemDefinition)
+    return finalPAsList + candidatePAs
 
-def allocateClientesToPAs(PAsAndClients, currentPA):
+def allocateClientesToPAs(PAsAndClients, currentPA, problemDefinition):
     PAs, unnalocatedClients = PAsAndClients
 
-    candidateClients, tooFarClients = selectClientsByDistance(currentPA, unnalocatedClients)
-    selectedClients, restClients = selectClientsUntilCapacity(candidateClients)
+    if not unnalocatedClients:
+            return ([*PAs, currentPA], [])
+
+    candidateClients, tooFarClients = selectClientsByDistance(currentPA, unnalocatedClients, problemDefinition)
+    selectedClients, restClients = selectClientsUntilCapacity(candidateClients, problemDefinition)
+
     newPA = currentPA.withNewClients(selectedClients)
 
     return ([*PAs, newPA], restClients + tooFarClients)
 
-def selectClientsByDistance(PA, clients):
+def selectClientsByDistance(PA, clients, problemDefinition):
     selected, unselected = [], []
 
     for client in clients:
-        if getDistanceBetweenPAAndClient(PA, client) < PA_MAX_COVERAGE_RADIUS:
+        if getDistanceBetweenPAAndClient(PA, client) < problemDefinition.paMaxCoverageRadius:
             selected.append(client)
         else:
             unselected.append(client)
@@ -213,12 +228,12 @@ def getDistanceBetweenPAAndClient(PA, client):
     ysDistance = PA.y - client.y
     return math.sqrt( xsDistance**2 + ysDistance**2 )
 
-def selectClientsUntilCapacity(clients):
+def selectClientsUntilCapacity(clients, problemDefinition):
         capacity = 0
         selected, unselected = [], []
 
         for client in clients:
-            if capacity + client.band_width > PA_MAX_CAPACITY:
+            if capacity + client.band_width > problemDefinition.paMaxCapacity:
                 unselected.append(client)
             else:
                 selected.append(client)
