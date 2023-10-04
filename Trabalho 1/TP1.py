@@ -5,7 +5,7 @@ from functools import reduce
 import numpy as np
 import matplotlib.pyplot as plt
 import copy
-
+import random
 class Struct:
     pass
 
@@ -115,12 +115,11 @@ def factoryInitialSolution(problemDefinition):
     solution = Solution()
     initialPAsList = minimizePAsHeuristic(problemDefinition)
     solution.currentSolution = filterPAsEnabled(initialPAsList)
-    print("Initial Solution fitness", len(solution.currentSolution))
     return solution
 
 def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
     newSolution = copy.deepcopy(solution)
-    enabledPAs = filterPAsEnabled(solution.currentSolution)
+    enabledPAs = filterPAsEnabled(newSolution.currentSolution)
 
     newSolution.fitness = len(enabledPAs)
 
@@ -275,8 +274,73 @@ def getTotalDistanceSumBetweenPAsAndClients(PAs):
     return sum(sum(getDistanceBetweenPAAndClient(pa, client) for client in pa.clients) for pa in PAs)
 
 def shake(currentSolution, neighborhoodStrategyIndex, problemDefinition):
-    # do something
-    return currentSolution
+    
+    # Passar um único cliente para outro PA aleatório ativo
+    if neighborhoodStrategyIndex == 1:
+       return neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
+    # Passar dois clientes para outro PA aleatório
+    if neighborhoodStrategyIndex == 2:
+        newSolution = neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
+        return neighborhoodStrategyMoveClientToAnotherEnabledPA(newSolution, problemDefinition)
+    # Trocar clientes de PAs TERMINARRRRRRRRRRRRRRRRRRR
+    else: 
+        return neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
+
+def neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition):
+    candidateSolution = copy.deepcopy(currentSolution)
+    currentPAs = candidateSolution.currentSolution
+
+    originPAIndex = random.randint(0, len(currentPAs) - 1)
+    originPA = currentPAs[originPAIndex]
+
+    destinyPAIndex = random.randint(0, len(currentPAs) - 1)
+    destinyPA = currentPAs[destinyPAIndex]
+
+    clientToMoveIndex = random.randint(0, len(originPA.clients) - 1)
+    clientToMove = originPA.clients[clientToMoveIndex]
+
+    if destinyPA.capacity < problemDefinition.paMaxCapacity and getDistanceBetweenPAAndClient(destinyPA, clientToMove) <= problemDefinition.paMaxCoverageRadius:
+        originPA.clients.remove(clientToMove)
+        destinyPA.clients.append(clientToMove)
+    
+    currentPAs[originPAIndex] = originPA
+    currentPAs[destinyPAIndex] = destinyPA
+    candidateSolution.currentSolution = currentPAs
+    return candidateSolution
+
+def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition):
+    candidateSolution = copy.deepcopy(currentSolution)
+    currentPAs = candidateSolution.currentSolution
+
+    indexPaA = random.randint(0, len(currentPAs) - 1)
+    paA = currentPAs[indexPaA]
+
+    indexPaB = random.randint(0, len(currentPAs) - 1)
+    pab = currentPAs[indexPaB]
+
+    indexClientA = random.randint(0, len(paA.clients) - 1)
+    clientA = paA.clients[indexClientA]
+
+    indexClientB = random.randint(0, len(pab.clients) - 1)
+    clientB = pab.clients[indexClientB]
+
+    paBNewCapacity = pab.capacity - clientB.band_width + clientA.band_width
+    paANewCapacity = paA.capacity - clientA.band_width + clientB.band_width
+
+    distancePaBClientA = getDistanceBetweenPAAndClient(paB, clientA)
+    distancePaAClientB = getDistanceBetweenPAAndClient(paA, clientB)
+    
+    if paBNewCapacity <= problemDefinition.paMaxCapacity and paANewCapacity <= problemDefinition.paMaxCapacity and distancePaAClientB <= problemDefinition.paMaxCoverageRadius and distancePaBClientA <= problemDefinition.paMaxCoverageRadius:
+        paA.clients.remove(clientA)
+        paA.clients.append(clientB)
+
+        pab.clients.remove(clientB)
+        pab.clients.append(clientA)
+    
+    currentPAs[indexPaA] = paA
+    currentPAs[indexPaB] = pab
+    candidateSolution.currentSolution = currentPAs
+    return candidateSolution
 
 def neighborhoodChange(solution, cadidateSolution, neighborhoodStrategyIndex):
     # do something
@@ -331,8 +395,8 @@ def main():
         k = 1
         while k <= kmax:
 
-            # Gera uma solução candidata na k-ésima vizinhança de x          
-            y = shake(solution, k, problemDefinition)
+            # Gera uma solução candidata na k-ésima vizinhança de x 
+            y = shake(solution, k, problemDefinition)     
             y = objectiveFuntionMinimizeAmountOfPAs(y, problemDefinition)
             numberOfEvaluatedCandidates += 1
 
