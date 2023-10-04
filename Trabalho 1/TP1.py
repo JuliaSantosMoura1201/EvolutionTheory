@@ -29,7 +29,7 @@ class Solution:
         self,
         fitness = 0,
         violation = 0,
-        feasible = False,
+        feasible = True,
         currentSolution = None 
     ):
         self.fitness = fitness
@@ -123,7 +123,7 @@ def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
 
     newSolution.fitness = len(enabledPAs)
 
-    R1 = percentageOfClientsAttended(solution.currentSolution, problemDefinition)
+    R1 = percentageOfClientsNotAttended(solution.currentSolution, problemDefinition)
     R2 = amountOfPAsAboveCapacity(solution.currentSolution, problemDefinition)
     R3 = amountOfPAsClientOutsideMaxRange(solution.currentSolution, problemDefinition)
     R4 = amountOfReplicatedClients(solution.currentSolution)
@@ -131,19 +131,19 @@ def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
     
     newSolution.violation = 150 * (R1 + R2 + R3 + R4 + R5)
     
-    newSolution.feasible = solution.violation != 0
+    newSolution.feasible = solution.violation == 0
 
     return newSolution
 
 #R1
-def percentageOfClientsAttended(PAs, problemDefinition):
+def percentageOfClientsNotAttended(PAs, problemDefinition):
     selectedClients = set()
 
     for pa in PAs:
         selectedClients.update(pa.clients)
     
     perentageOfClientsAttended = len(selectedClients)/len(problemDefinition.clients)
-    return perentageOfClientsAttended * 100
+    return (1 - perentageOfClientsAttended )* 100
 
 #R2
 def amountOfPAsAboveCapacity(PAs, problemDefinition):
@@ -158,7 +158,7 @@ def amountOfPAsClientOutsideMaxRange(PAs, problemDefinition):
     amountOfPAsClientOutsideMaxRange = 0
     for pa in PAs:
         for client in pa.clients:
-            if getDistanceBetweenPAAndClient(pa, client) <= problemDefinition.paMaxCoverageRadius:
+            if getDistanceBetweenPAAndClient(pa, client) > problemDefinition.paMaxCoverageRadius:
                 amountOfPAsClientOutsideMaxRange += 1
     return amountOfPAsClientOutsideMaxRange
 
@@ -173,13 +173,16 @@ def amountOfReplicatedClients(PAs):
     for client in selectedClients:
         count = selectedClients.count(client)
         if(count > 1):
-            amountOfReplicatedClients += count 
+            amountOfReplicatedClients += count - 1 # subtrai um pq tem que ter ao menos um mesmo
     
     return amountOfReplicatedClients
 
 #R5
 def amountOfPAsAboveMaxAmount(PAs, problemDefinition):
-    return len(PAs)  - problemDefinition.maxAmountOfPAs
+    amountOfPas = len(PAs)
+    if amountOfPas <= problemDefinition.maxAmountOfPAs:
+        return 0
+    return amountOfPas - problemDefinition.maxAmountOfPAs
 
 def minimizePAsHeuristic(problemDefinition):
     
@@ -282,9 +285,8 @@ def shake(currentSolution, neighborhoodStrategyIndex, problemDefinition):
     if neighborhoodStrategyIndex == 2:
         newSolution = neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
         return neighborhoodStrategyMoveClientToAnotherEnabledPA(newSolution, problemDefinition)
-    # Trocar clientes de PAs TERMINARRRRRRRRRRRRRRRRRRR
-    else: 
-        return neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
+    # Trocar clientes de PAs
+    return neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
 
 def neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition):
     candidateSolution = copy.deepcopy(currentSolution)
