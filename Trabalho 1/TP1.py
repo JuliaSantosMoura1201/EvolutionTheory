@@ -316,15 +316,15 @@ def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinit
     paA = currentPAs[indexPaA]
 
     indexPaB = random.randint(0, len(currentPAs) - 1)
-    pab = currentPAs[indexPaB]
+    paB = currentPAs[indexPaB]
 
     indexClientA = random.randint(0, len(paA.clients) - 1)
     clientA = paA.clients[indexClientA]
 
-    indexClientB = random.randint(0, len(pab.clients) - 1)
-    clientB = pab.clients[indexClientB]
+    indexClientB = random.randint(0, len(paB.clients) - 1)
+    clientB = paB.clients[indexClientB]
 
-    paBNewCapacity = pab.capacity - clientB.band_width + clientA.band_width
+    paBNewCapacity = paB.capacity - clientB.band_width + clientA.band_width
     paANewCapacity = paA.capacity - clientA.band_width + clientB.band_width
 
     distancePaBClientA = getDistanceBetweenPAAndClient(paB, clientA)
@@ -334,17 +334,28 @@ def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinit
         paA.clients.remove(clientA)
         paA.clients.append(clientB)
 
-        pab.clients.remove(clientB)
-        pab.clients.append(clientA)
+        paB.clients.remove(clientB)
+        paB.clients.append(clientA)
     
     currentPAs[indexPaA] = paA
-    currentPAs[indexPaB] = pab
+    currentPAs[indexPaB] = paB
     candidateSolution.currentSolution = currentPAs
     return candidateSolution
 
-def neighborhoodChange(solution, cadidateSolution, neighborhoodStrategyIndex):
-    # do something
-    return solution, neighborhoodStrategyIndex
+def neighborhoodChange(solution, candidateSolution, neighborhoodStrategyIndex):
+
+    # verifica se a solução y deve ser escolhida (Stochastic Ranking)
+    def shouldSelectCandidateSolution(solution, candidateSolution, probability = 0.4):
+        if((solution.feasible and candidateSolution.feasible) or random.random() <= probability):
+            return candidateSolution.fitness < solution.fitness
+        
+        return candidateSolution.violation < solution.violation
+
+    
+    if shouldSelectCandidateSolution(solution, candidateSolution):
+        return candidateSolution, 1
+    return solution, neighborhoodStrategyIndex + 1
+
 
 def main():
 
