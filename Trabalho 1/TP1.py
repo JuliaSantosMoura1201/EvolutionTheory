@@ -9,6 +9,19 @@ import random
 class Struct:
     pass
 
+class History:
+    def __init__(
+        self,
+        fit = None,
+        sol = None,
+        fea = None,
+        vio = None
+    ):
+        self.fit = [] if fit is None else fit
+        self.sol = [] if sol is None else sol
+        self.fea = [] if fea is None else fea
+        self.vio = [] if vio is None else vio
+
 class ProblemDefinition:
     clientsMinCoverage = 0.95
     paMaxCapacity = 54
@@ -111,25 +124,45 @@ def factoryPAs():
 def filterPAsEnabled(PAs):
     return list(filter(lambda PA: PA.capacity != 0, PAs))
 
-def factoryInitialSolution(problemDefinition):
+def factoryInitialSolutionToMinimizePAsAmount(problemDefinition):
     solution = Solution()
     initialPAsList = minimizePAsHeuristic(problemDefinition)
     solution.currentSolution = filterPAsEnabled(initialPAsList)
     return solution
+
+def calculateViolation(solution, problemDefinition):
+    R1 = percentageOfClientsNotAttended(solution.currentSolution, problemDefinition)
+    R2 = amountOfPAsAboveCapacity(solution.currentSolution, problemDefinition)
+    R3 = amountOfPAsClientOutsideMaxRange(solution.currentSolution, problemDefinition)
+    R4 = amountOfReplicatedClients(solution.currentSolution)
+    R5 = amountOfPAsAboveMaxAmount(solution.currentSolution, problemDefinition)
+    return 150 * (R1 + R2 + R3 + R4 + R5)
 
 def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
     newSolution = copy.deepcopy(solution)
     enabledPAs = filterPAsEnabled(newSolution.currentSolution)
 
     newSolution.fitness = len(enabledPAs)
-
-    R1 = percentageOfClientsNotAttended(solution.currentSolution, problemDefinition)
-    R2 = amountOfPAsAboveCapacity(solution.currentSolution, problemDefinition)
-    R3 = amountOfPAsClientOutsideMaxRange(solution.currentSolution, problemDefinition)
-    R4 = amountOfReplicatedClients(solution.currentSolution)
-    R5 = amountOfPAsAboveMaxAmount(solution.currentSolution, problemDefinition)
     
-    newSolution.violation = 150 * (R1 + R2 + R3 + R4 + R5)
+    newSolution.violation = calculateViolation(solution, problemDefinition)
+    
+    newSolution.feasible = solution.violation == 0
+
+    return newSolution
+
+def factoryInitialSolutionToMinimizeTotalDistance(problemDefinition):
+    solution = Solution()
+    initialPAsList = minimizeTotalDistanceBetwenEnabledPAsAndClients(problemDefinition)
+    solution.currentSolution = filterPAsEnabled(initialPAsList)
+    return solution
+
+def objectiveFuntionToMinimizeTotalDistance(solution, problemDefinition):
+    newSolution = copy.deepcopy(solution)
+    enabledPAs = filterPAsEnabled(newSolution.currentSolution)
+
+    newSolution.fitness = getTotalDistanceSumBetweenPAsAndClients(enabledPAs)
+    
+    newSolution.violation = calculateViolation(solution, problemDefinition)
     
     newSolution.feasible = solution.violation == 0
 
@@ -243,26 +276,36 @@ def selectClientsUntilCapacity(clients, problemDefinition):
 
         return selected, unselected
 
-def minimizeTotalDistanceBetwenEnabledPAsAndClients(PAs, clients):
-    
-    def getSelectedClientsTotalDistance(PA, clients):
+def minimizeTotalDistanceBetwenEnabledPAsAndClients(problemDefinition):
+
+    def getSelectedClientsTotalDistance(PA, clients, problemDefinition):
             selected, unselected = [], []
             totalDistance = 0
 
             for client in clients:
                 distance = getDistanceBetweenPAAndClient(PA, client)
-                if distance < PA_MAX_COVERAGE_RADIUS:
+                if distance < problemDefinition.paMaxCoverageRadius:
                     totalDistance += distance
                     selected.append(client)
                 else:
                     unselected.append(client)
 
             return totalDistance
-    
-    def sortPAsForMinDistance(PAs, clients):
-        return sorted(PAs, key = lambda pa: getSelectedClientsTotalDistance(pa, clients), reverse = True)
-    
-    return reduce(allocateClientesToPAs, sortPAsForMinDistance(PAs, clients), ([], clients))
+
+    def sortPAsForMinDistance(PAs, clients, problemDefinition):
+        return sorted(PAs, key = lambda pa: getSelectedClientsTotalDistance(pa, clients, problemDefinition), reverse = True)
+
+    finalPAsList = []
+    candidatePAs = sortPAsForMinDistance(problemDefinition.PAs, problemDefinition.clients, problemDefinition)
+    unnalocatedClients = [*problemDefinition.clients]
+    while len(unnalocatedClients):
+        # Pega o primeiro PA pq ele sempre é o que tem menor distância relativa
+        currentPa = candidatePAs.pop(0)
+        # Aloca o máximo de clientes possíveis no PA atual
+        finalPAsList, unnalocatedClients = allocateClientesToPAs((finalPAsList, unnalocatedClients), currentPa, problemDefinition)
+        # Reordena os PAs em função da distância relativa
+        candidatePAs = sortPAsForMinDistance(candidatePAs, unnalocatedClients, problemDefinition)
+    return finalPAsList + candidatePAs
 
 def printPAs(PAs):
     for PA in PAs:
@@ -276,7 +319,19 @@ def readClients(clients):
 def getTotalDistanceSumBetweenPAsAndClients(PAs):
     return sum(sum(getDistanceBetweenPAAndClient(pa, client) for client in pa.clients) for pa in PAs)
 
-def shake(currentSolution, neighborhoodStrategyIndex, problemDefinition):
+def shakeToMinimizeDistance(currentSolution, neighborhoodStrategyIndex, problemDefinition):
+    
+    # Passar um único cliente para outro PA aleatório ativo
+    if neighborhoodStrategyIndex == 1:
+       return neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
+    # Passar dois clientes para outro PA aleatório
+    if neighborhoodStrategyIndex == 2:
+        newSolution = neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
+        return neighborhoodStrategyMoveClientToAnotherEnabledPA(newSolution, problemDefinition)
+    # Trocar clientes de PAs
+    return neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
+
+def shakeToMinimizeAmountOfPAs(currentSolution, neighborhoodStrategyIndex, problemDefinition):
     
     # Passar um único cliente para outro PA aleatório ativo
     if neighborhoodStrategyIndex == 1:
@@ -358,58 +413,70 @@ def neighborhoodChange(solution, candidateSolution, neighborhoodStrategyIndex):
         return candidateSolution, 1
     return solution, neighborhoodStrategyIndex + 1
 
+def plotSolution(historico, bestuptonow):
+    fig, (ax1, ax2) = plt.subplots(2, 1)
+    s = len(historico.fit)
+    ax1.plot(np.linspace(0,s-1,s),historico.fit,'k-')
+    ax2.plot(np.linspace(0,s-1,s),bestuptonow.fit,'b:')
+    fig.suptitle('Evolução da qualidade da solução candidata')
+    ax1.set_ylabel('current fitness(x)')
+    ax2.set_ylabel('best fitness(x)')
+    ax2.set_xlabel('Número de avaliações')
+    plt.subplots_adjust(left=0.1,
+                        bottom=0.1, 
+                        right=0.9, 
+                        top=0.9, 
+                        wspace=0.4, 
+                        hspace=0.4)
+    plt.show()
 
-def main():
+def plotBestSolution(bestuptonow):
+    print('\n--- MELHOR SOLUÇÃO ENCONTRADA ---\n')
+    print('Identificação dos projetos selecionados:\n')
+    print('x = {}\n'.format(bestuptonow.sol[-1]))
+    print('fitness(x) = {:.2f}\n'.format(bestuptonow.fit[-1]))
+    print('violation(x) = {:.2f}\n'.format(bestuptonow.vio[-1]))
+    print('feasible(x) = {}\n'.format(bestuptonow.fea[-1]))
 
-    problemDefinition = ProblemDefinition()
-    problemDefinition.clients = getClients()
-    problemDefinition.PAs = factoryPAs()
+def plotFirstSolution(bestuptonow):
+    print('\n--- SOLUÇÃO INICIAL CONSTRUÍDA ---\n')
+    print('Identificação dos projetos selecionados:\n')
+    print('Mensagem', bestuptonow.vio[0])
+    print('x = {}\n'.format(bestuptonow.sol[0]))
+    print('fitness(x) = {:.2f}\n'.format(bestuptonow.fit[0]))
+    print('violation(x) = {:.2f}\n'.format(bestuptonow.vio[0]))
+    print('feasible(x) = {}\n'.format(bestuptonow.fea[0]))
 
-    # Contador do número de soluções candidatas avaliadas
+def bvnsToMinimizeAmountOfClients(problemDefinition):
     numberOfEvaluatedCandidates = 0
-
-    # Máximo número de soluções candidatas avaliadas
     max_num_sol_avaliadas = 5
-
-    # Número de estruturas de vizinhanças definidas
     kmax = 3
 
-    # Gera solução inicial
-    solution = factoryInitialSolution(problemDefinition)
-
-    # Avalia solução inicial
+    solution = factoryInitialSolutionToMinimizePAsAmount(problemDefinition)
     solution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
+
     numberOfEvaluatedCandidates += 1
 
     # Armazena dados para plot
-    historico = Struct()
-    historico.fit = []
-    historico.sol = []
-    historico.fea = []
-    historico.vio = []
+    historico = History()
     historico.fit.append(solution.fitness)
     historico.sol.append(solution.currentSolution)
     historico.fea.append(solution.feasible)
     historico.vio.append(solution.violation)
 
-    bestuptonow = Struct()
-    bestuptonow.fit = []
-    bestuptonow.sol = []
-    bestuptonow.fea = []
-    bestuptonow.vio = []
+    bestuptonow = History()
     bestuptonow.fit.append(solution.fitness)
     bestuptonow.sol.append(solution.currentSolution)
     bestuptonow.fea.append(solution.feasible)
     bestuptonow.vio.append(solution.violation)
 
-    # Ciclo iterativo do método
     while numberOfEvaluatedCandidates < max_num_sol_avaliadas:
 
         k = 1
         while k <= kmax:
 
             # Gera uma solução candidata na k-ésima vizinhança de x 
-            y = shake(solution, k, problemDefinition)     
+            y = shakeToMinimizeAmountOfPAs(solution, k, problemDefinition)     
             y = objectiveFuntionMinimizeAmountOfPAs(y, problemDefinition)
             numberOfEvaluatedCandidates += 1
 
@@ -437,35 +504,77 @@ def main():
                 bestuptonow.fea.append(bestuptonow.fea[-1])
                 bestuptonow.vio.append(bestuptonow.vio[-1])
                     
-    print('\n--- SOLUÇÃO INICIAL CONSTRUÍDA ---\n')
-    print('Identificação dos projetos selecionados:\n')
-    print('Mensagem', bestuptonow.vio[0])
-    print('x = {}\n'.format(bestuptonow.sol[0]))
-    print('fitness(x) = {:.2f}\n'.format(bestuptonow.fit[0]))
-    print('violation(x) = {:.2f}\n'.format(bestuptonow.vio[0]))
-    print('feasible(x) = {}\n'.format(bestuptonow.fea[0]))
+    plotBestSolution(bestuptonow)
+    plotFirstSolution(bestuptonow)
+    plotSolution(historico, bestuptonow)
+    
+def bvnsToMinimizeTotalDistance(problemDefinition):
+    numberOfEvaluatedCandidates = 0
+    max_num_sol_avaliadas = 5
+    kmax = 3
 
-    print('\n--- MELHOR SOLUÇÃO ENCONTRADA ---\n')
-    print('Identificação dos projetos selecionados:\n')
-    print('x = {}\n'.format(bestuptonow.sol[-1]))
-    print('fitness(x) = {:.2f}\n'.format(bestuptonow.fit[-1]))
-    print('violation(x) = {:.2f}\n'.format(bestuptonow.vio[-1]))
-    print('feasible(x) = {}\n'.format(bestuptonow.fea[-1]))
+    solution = factoryInitialSolutionToMinimizeTotalDistance(problemDefinition)
+    solution = objectiveFuntionToMinimizeTotalDistance(solution, problemDefinition)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1)
-    s = len(historico.fit)
-    ax1.plot(np.linspace(0,s-1,s),historico.fit,'k-')
-    ax2.plot(np.linspace(0,s-1,s),bestuptonow.fit,'b:')
-    fig.suptitle('Evolução da qualidade da solução candidata')
-    ax1.set_ylabel('current fitness(x)')
-    ax2.set_ylabel('best fitness(x)')
-    ax2.set_xlabel('Número de avaliações')
-    plt.subplots_adjust(left=0.1,
-                        bottom=0.1, 
-                        right=0.9, 
-                        top=0.9, 
-                        wspace=0.4, 
-                        hspace=0.4)
-plt.show()
+    numberOfEvaluatedCandidates += 1
+
+    # Armazena dados para plot
+    historico = History()
+    historico.fit.append(solution.fitness)
+    historico.sol.append(solution.currentSolution)
+    historico.fea.append(solution.feasible)
+    historico.vio.append(solution.violation)
+
+    bestuptonow = History()
+    bestuptonow.fit.append(solution.fitness)
+    bestuptonow.sol.append(solution.currentSolution)
+    bestuptonow.fea.append(solution.feasible)
+    bestuptonow.vio.append(solution.violation)
+
+    while numberOfEvaluatedCandidates < max_num_sol_avaliadas:
+
+        k = 1
+        while k <= kmax:
+
+            # Gera uma solução candidata na k-ésima vizinhança de x 
+            y = shakeToMinimizeDistance(solution, k, problemDefinition)     
+            y = objectiveFuntionToMinimizeTotalDistance(y, problemDefinition)
+            numberOfEvaluatedCandidates += 1
+
+            # Atualiza solução corrente e estrutura de vizinhança (se necessário)
+            solution, k = neighborhoodChange(solution, y, k)
+
+            # Armazena dados para plot
+            historico.fit.append(solution.fitness)
+            historico.sol.append(solution.currentSolution)
+            historico.fea.append(solution.feasible)  
+            historico.vio.append(solution.violation)
+
+            # Mantém registro da melhor solução encontrada até então
+            condition0 = solution.feasible == True and bestuptonow.fea[-1] == False
+            condition1 = solution.feasible == True and bestuptonow.fea[-1] == True and solution.fitness < bestuptonow.fit[-1]
+            condition2 = solution.feasible == False and bestuptonow.fea[-1] == False and solution.violation < bestuptonow.vio[-1]
+            if condition0 or condition1 or condition2 == True:
+                bestuptonow.fit.append(solution.fitness)
+                bestuptonow.sol.append(solution.currentSolution)
+                bestuptonow.fea.append(solution.feasible)
+                bestuptonow.vio.append(solution.violation)
+            else:
+                bestuptonow.fit.append(bestuptonow.fit[-1])
+                bestuptonow.sol.append(bestuptonow.sol[-1])
+                bestuptonow.fea.append(bestuptonow.fea[-1])
+                bestuptonow.vio.append(bestuptonow.vio[-1])
+                    
+    plotBestSolution(bestuptonow)
+    plotFirstSolution(bestuptonow)
+    plotSolution(historico, bestuptonow)
+
+def main():
+    problemDefinition = ProblemDefinition()
+    problemDefinition.clients = getClients()
+    problemDefinition.PAs = factoryPAs()
+
+    bvnsToMinimizeAmountOfClients(problemDefinition)
+    bvnsToMinimizeTotalDistance(problemDefinition)
 
 main()
