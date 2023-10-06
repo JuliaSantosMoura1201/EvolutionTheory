@@ -6,6 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 import random
+import numpy as np
+import matplotlib.pyplot as plt
+
 class Struct:
     pass
 
@@ -335,7 +338,6 @@ def getTotalDistanceSumBetweenPAsAndClients(PAs):
 
 def shakeToMinimizeDistance(currentSolution, neighborhoodStrategyIndex, problemDefinition):
     
-    
     if neighborhoodStrategyIndex == 1:
        return neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
     
@@ -431,7 +433,6 @@ def neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDef
 
     clientsLenght = len(originPA.clients)
     clientToMoveIndex = clientsLenght if clientsLenght == 0 else random.randint(0, clientsLenght - 1)
-
     clientToMove = originPA.clients[clientToMoveIndex]
 
     if destinyPA.capacity < problemDefinition.paMaxCapacity and getDistanceBetweenPAAndClient(destinyPA, clientToMove) <= problemDefinition.paMaxCoverageRadius:
@@ -448,19 +449,18 @@ def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinit
     currentPAs = candidateSolution.currentSolution
 
     pasLenght = len(currentPAs)
-
-    indexPaA = pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
+    indexPaA = 0 if pasLenght == 0 else random.randint(0, pasLenght - 1)
     paA = currentPAs[indexPaA]
 
-    indexPaB = pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
+    indexPaB = 0 if pasLenght == 0 else random.randint(0, pasLenght - 1)
     paB = currentPAs[indexPaB]
 
     clientALen = len(paA.clients)
-    indexClientA =  clientALen if clientALen == 0 else random.randint(0, clientALen - 1)
+    indexClientA = 0 if clientALen == 0 else random.randint(0, clientALen - 1)
     clientA = paA.clients[indexClientA]
 
     clientBLen = len(paB.clients)
-    indexClientB =  clientBLen if clientBLen == 0 else random.randint(0, clientBLen - 1)
+    indexClientB = 0 if clientBLen == 0 else random.randint(0, clientBLen - 1)
     clientB = paB.clients[indexClientB]
 
     paBNewCapacity = paB.capacity - clientB.band_width + clientA.band_width
@@ -671,9 +671,10 @@ def bvnsToMinimizeAmountOfClients(problemDefinition):
                 bestuptonow.fea.append(bestuptonow.fea[-1])
                 bestuptonow.vio.append(bestuptonow.vio[-1])
                     
-    plotBestSolution(bestuptonow)
-    plotFirstSolution(bestuptonow)
-    plotSolution(historico, bestuptonow)
+    #plotBestSolution(bestuptonow)
+    #plotFirstSolution(bestuptonow)
+    #plotSolution(historico, bestuptonow)
+    return bestuptonow
     
 def bvnsToMinimizeTotalDistance(problemDefinition):
     numberOfEvaluatedCandidates = 0
@@ -733,16 +734,86 @@ def bvnsToMinimizeTotalDistance(problemDefinition):
                 bestuptonow.fea.append(bestuptonow.fea[-1])
                 bestuptonow.vio.append(bestuptonow.vio[-1])
                     
-    plotBestSolution(bestuptonow)
-    plotFirstSolution(bestuptonow)
-    plotSolution(historico, bestuptonow)
+    #plotBestSolution(bestuptonow)
+    #plotFirstSolution(bestuptonow)
+    #plotSolution(historico, bestuptonow)
+    return bestuptonow
+
+def plotBestSolutions(solutions):
+    fig, ax1 = plt.subplots(1, 1)
+    
+    for solutuion in solutions:
+        s = len(solutuion.fit)
+        ax1.plot(np.linspace(0, s - 1, s), solutuion.fit, '-')
+    
+    fig.suptitle('Evolução do fitness')
+    ax1.set_ylabel('Evolução do valor de f(·)')
+    ax1.set_xlabel('Número de avaliações')
+    
+    plt.subplots_adjust(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.4, hspace=0.4)
+    plt.show()
+
+def plotTheBestSolution(solution):
+    import matplotlib.pyplot as plt
+
+def plotTheBestSolution(solution):
+    pas = solution.sol[-1]
+    print(pas)
+    # Defina uma lista de cores e símbolos para PAs e clientes
+    colors_pa = [
+        'red', 'green', 'blue', 'orange', 'purple', 'pink', 'brown', 'cyan',
+        'magenta', 'yellow', 'lime', 'indigo', 'teal', 'maroon', 'olive', 'navy',
+        'salmon', 'sienna', 'turquoise', 'gold', 'violet', 'plum', 'slategray', 'darkgreen'
+    ]
+    current_color_index = 0  # Variável para alternar as cores
+    
+    for pa in pas:
+        current_color = colors_pa[current_color_index]
+        
+        plt.scatter(pa.x, pa.y, s=50, color=current_color, marker='s', label='PA')
+        for client in pa.clients:
+            plt.scatter(client.x, client.y, s=20, color=current_color, marker='o', label='Client')
+
+        current_color_index = (current_color_index + 1) % len(colors_pa)
+    
+    plt.xlabel('Coordenada X')
+    plt.ylabel('Coordenada Y')
+    plt.show()
+
+
+def printResults(historyList):
+    fitValues = [history.fit for history in historyList]
+    fitValues = [fit for sublist in fitValues for fit in sublist]
+
+    fitMin = min(fitValues)
+    fitMax = max(fitValues)
+    fitStd = np.std(fitValues)
+
+    print("Menor valor de aptidão:", fitMin)
+    print("Maior valor de aptidão:", fitMax)
+    print("Desvio padrão dos valores de aptidão:", fitStd)
 
 def main():
     problemDefinition = ProblemDefinition()
     problemDefinition.clients = getClients()
     problemDefinition.PAs = factoryPAs()
 
-    bvnsToMinimizeAmountOfClients(problemDefinition)
-    bvnsToMinimizeTotalDistance(problemDefinition)
+    bestSolutionsMinPA = []
+    for i in range(5):
+        bestUpToNow = bvnsToMinimizeAmountOfClients(problemDefinition)
+        plotTheBestSolution(bestUpToNow)
+        bestSolutionsMinPA.append(bestUpToNow)
+    
+    printResults(bestSolutionsMinPA)
+    plotBestSolutions(bestSolutionsMinPA)
+    
+    bestSolutionMinDist = []
+    for i in range(5):
+        bestUpToNow = bvnsToMinimizeTotalDistance(problemDefinition)
+        plotTheBestSolution(bestUpToNow)
+        bestSolutionMinDist.append(bestUpToNow)
+
+    printResults(bestSolutionMinDist)
+    plotBestSolutions(bestSolutionMinDist)
 
 main()
