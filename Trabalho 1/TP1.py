@@ -553,6 +553,36 @@ def plotFirstSolution(bestuptonow):
     print('violation(x) = {:.2f}\n'.format(bestuptonow.vio[0]))
     print('feasible(x) = {}\n'.format(bestuptonow.fea[0]))
 
+def findMinDistBestNeighbor(solution, problemDefinition):
+    currentSolution = copy.deepcopy(solution)
+
+    neighborhood1 = neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
+    solution1 = objectiveFuntionToMinimizeTotalDistance(neighborhood1, problemDefinition)
+    cost1 = solution1.fitness + solution1.violation
+
+    neighborhood2 = neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
+    solution2 = objectiveFuntionToMinimizeTotalDistance(neighborhood2, problemDefinition)
+    cost2 = solution2.fitness + solution2.violation
+    
+    neighborhood3 = neighborhoodStrategyRemoveClient(currentSolution, problemDefinition)
+    solution3 = objectiveFuntionToMinimizeTotalDistance(neighborhood3, problemDefinition)
+    cost3 = solution3.fitness + solution3.violation
+
+    neighborhoods = [neighborhood1, neighborhood2, neighborhood3]
+    costs = [cost1, cost2, cost3]
+
+    bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])
+    return bestNeighbor[0], bestNeighbor[1]
+
+    bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])[0]
+
+def firstImprovementMinimizeDist(solution, problemDefinition):
+    currentSolutionCost = solution.fitness + solution.violation
+    bestNeighbor, bestNeighborCost = findMinDistBestNeighbor(solution, problemDefinition)
+    if bestNeighborCost < currentSolutionCost:
+        return bestNeighbor
+    return solution 
+
 def findMinPABestNeighbor(solution, problemDefinition):
     currentSolution = copy.deepcopy(solution)
 
@@ -576,7 +606,7 @@ def findMinPABestNeighbor(solution, problemDefinition):
 
     bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])[0]
 
-def fistImprovementMinimizePas(solution, problemDefinition):
+def firstImprovementMinimizePas(solution, problemDefinition):
     currentSolutionCost = solution.fitness + solution.violation
     bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition)
     if bestNeighborCost < currentSolutionCost:
@@ -613,7 +643,7 @@ def bvnsToMinimizeAmountOfClients(problemDefinition):
 
             # Gera uma solução candidata na k-ésima vizinhança de x 
             y = shakeToMinimizeAmountOfPAs(solution, k, problemDefinition)    
-            y = fistImprovementMinimizePas(solution, problemDefinition) 
+            y = firstImprovementMinimizePas(solution, problemDefinition) 
             y = objectiveFuntionMinimizeAmountOfPAs(y, problemDefinition)
             numberOfEvaluatedCandidates += 1
 
@@ -675,6 +705,7 @@ def bvnsToMinimizeTotalDistance(problemDefinition):
 
             # Gera uma solução candidata na k-ésima vizinhança de x 
             y = shakeToMinimizeDistance(solution, k, problemDefinition)     
+            y = firstImprovementMinimizeDist(solution, problemDefinition) 
             y = objectiveFuntionToMinimizeTotalDistance(y, problemDefinition)
             numberOfEvaluatedCandidates += 1
 
