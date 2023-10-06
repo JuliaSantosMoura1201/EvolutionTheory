@@ -132,10 +132,15 @@ def factoryInitialSolutionToMinimizePAsAmount(problemDefinition):
 
 def calculateViolation(solution, problemDefinition):
     R1 = percentageOfClientsNotAttended(solution.currentSolution, problemDefinition)
+    print("percentageOfClientsNotAttended", R1)
     R2 = amountOfPAsAboveCapacity(solution.currentSolution, problemDefinition)
+    print("amountOfPAsAboveCapacity", R2)
     R3 = amountOfPAsClientOutsideMaxRange(solution.currentSolution, problemDefinition)
+    print("amountOfPAsClientOutsideMaxRange", R3)
     R4 = amountOfReplicatedClients(solution.currentSolution)
+    print("amountOfReplicatedClients", R4)
     R5 = amountOfPAsAboveMaxAmount(solution.currentSolution, problemDefinition)
+    print("amountOfPAsAboveMaxAmount", R5)
     return 150 * (R1 + R2 + R3 + R4 + R5)
 
 def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
@@ -241,7 +246,7 @@ def allocateClientesToPAs(PAsAndClients, currentPA, problemDefinition):
             return ([*PAs, currentPA], [])
 
     candidateClients, tooFarClients = selectClientsByDistance(currentPA, unnalocatedClients, problemDefinition)
-    selectedClients, restClients = selectClientsUntilCapacity(candidateClients, problemDefinition)
+    selectedClients, restClients = selectClientsUntilCapacity(currentPA, candidateClients, problemDefinition)
 
     newPA = currentPA.withNewClients(selectedClients)
 
@@ -263,18 +268,23 @@ def getDistanceBetweenPAAndClient(PA, client):
     ysDistance = PA.y - client.y
     return math.sqrt( xsDistance**2 + ysDistance**2 )
 
-def selectClientsUntilCapacity(clients, problemDefinition):
-        capacity = 0
-        selected, unselected = [], []
+def getDistanceBetweenPAs(PA1, PA2):
+    xsDistance = PA1.x - PA2.x
+    ysDistance = PA1.y - PA2.y
+    return math.sqrt( xsDistance**2 + ysDistance**2 )
 
-        for client in clients:
-            if capacity + client.band_width > problemDefinition.paMaxCapacity:
-                unselected.append(client)
-            else:
-                selected.append(client)
-                capacity += client.band_width
+def selectClientsUntilCapacity(pa, clients, problemDefinition):
+    capacity = pa.capacity
+    selected, unselected = [], []
 
-        return selected, unselected
+    for client in clients:
+        if capacity + client.band_width > problemDefinition.paMaxCapacity:
+            unselected.append(client)
+        else:
+            selected.append(client)
+            capacity += client.band_width
+
+    return selected, unselected
 
 def minimizeTotalDistanceBetwenEnabledPAsAndClients(problemDefinition):
 
@@ -333,15 +343,43 @@ def shakeToMinimizeDistance(currentSolution, neighborhoodStrategyIndex, problemD
 
 def shakeToMinimizeAmountOfPAs(currentSolution, neighborhoodStrategyIndex, problemDefinition):
     
-    # Passar um único cliente para outro PA aleatório ativo
+    # Mata um pa e realoca os clientes para os demais
     if neighborhoodStrategyIndex == 1:
-       return neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
+        return neighborhoodStrategyToKillPA(currentSolution, problemDefinition)
     # Passar dois clientes para outro PA aleatório
     if neighborhoodStrategyIndex == 2:
-        newSolution = neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
-        return neighborhoodStrategyMoveClientToAnotherEnabledPA(newSolution, problemDefinition)
+        return neighborhoodStrategyToKillPA(currentSolution, problemDefinition)
     # Trocar clientes de PAs
-    return neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
+    return neighborhoodStrategyToKillPA(currentSolution, problemDefinition)
+
+def neighborhoodStrategyToKillPA(solution, problemDefinition):
+    candidateSolution = copy.deepcopy(solution)
+    currentPAs = candidateSolution.currentSolution
+
+    paToKillIndex = random.randint(0, len(currentPAs) - 1)
+    paToKill = currentPAs[paToKillIndex]
+    currentPAs.remove(paToKill)
+
+    sortedPAs = sortClosestPAs(currentPAs, paToKill)
+
+    finalPAsList = []
+    unnalocatedClients = paToKill.clients
+    for pa in sortedPAs:
+        pa.clients = []
+        finalPAsList, unnalocatedClients = allocateClientesToPAs((finalPAsList, unnalocatedClients), pa, problemDefinition)
+        if unnalocatedClients is None:
+            break
+    
+    if percentageOfClientsNotAttended(finalPAsList, problemDefinition): 
+        candidateSolution.currentSolution = finalPAsList
+        return candidateSolution
+    #  Se tiver algum cliente q n pode ser movido deixa ele sem atendimento mesmo pq tem q atender só 95%
+    return solution
+ 
+def sortClosestPAs(PAs, selectedPA):
+    newPAs =  copy.deepcopy(PAs)
+    sorted(newPAs, key = lambda pa: getDistanceBetweenPAs(selectedPA, pa))
+    return newPAs
 
 def neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition):
     candidateSolution = copy.deepcopy(currentSolution)
