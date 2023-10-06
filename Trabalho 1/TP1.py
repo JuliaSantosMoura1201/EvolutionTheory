@@ -131,7 +131,7 @@ def factoryInitialSolutionToMinimizePAsAmount(problemDefinition):
     return solution
 
 def calculateViolation(solution, problemDefinition):
-    R1 = percentageOfClientsNotAttended(solution.currentSolution, problemDefinition)
+    R1 = percentageOfClientsNotAttendedBellowLimit(solution.currentSolution, problemDefinition)
     print("percentageOfClientsNotAttended", R1)
     R2 = amountOfPAsAboveCapacity(solution.currentSolution, problemDefinition)
     print("amountOfPAsAboveCapacity", R2)
@@ -174,14 +174,18 @@ def objectiveFuntionToMinimizeTotalDistance(solution, problemDefinition):
     return newSolution
 
 #R1
-def percentageOfClientsNotAttended(PAs, problemDefinition):
+def percentageOfClientsNotAttendedBellowLimit(PAs, problemDefinition):
     selectedClients = set()
 
     for pa in PAs:
         selectedClients.update(pa.clients)
     
-    perentageOfClientsAttended = len(selectedClients)/len(problemDefinition.clients)
-    return (1 - perentageOfClientsAttended )* 100
+    percentageOfClientsAttended = len(selectedClients)/len(problemDefinition.clients)
+    percentageOfClientsNotAttendedBellowLimit = problemDefinition.clientsMinCoverage - percentageOfClientsAttended 
+    
+    if(percentageOfClientsNotAttendedBellowLimit <= 0):
+        return 0 
+    return percentageOfClientsNotAttendedBellowLimit * 100
 
 #R2
 def amountOfPAsAboveCapacity(PAs, problemDefinition):
@@ -331,32 +335,31 @@ def getTotalDistanceSumBetweenPAsAndClients(PAs):
 
 def shakeToMinimizeDistance(currentSolution, neighborhoodStrategyIndex, problemDefinition):
     
-    # Passar um único cliente para outro PA aleatório ativo
+    
     if neighborhoodStrategyIndex == 1:
        return neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
-    # Passar dois clientes para outro PA aleatório
+    
     if neighborhoodStrategyIndex == 2:
-        newSolution = neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
-        return neighborhoodStrategyMoveClientToAnotherEnabledPA(newSolution, problemDefinition)
-    # Trocar clientes de PAs
-    return neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
+        return neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
+   
+    return neighborhoodStrategyRemoveClient(currentSolution, problemDefinition)
 
 def shakeToMinimizeAmountOfPAs(currentSolution, neighborhoodStrategyIndex, problemDefinition):
-    
-    # Mata um pa e realoca os clientes para os demais
+
     if neighborhoodStrategyIndex == 1:
-        return neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
-    # Passar dois clientes para outro PA aleatório
+        return neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
+    
     if neighborhoodStrategyIndex == 2:
         return neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
-    # Trocar clientes de PAs
-    return neighborhoodStrategyToKillRamdomPA(currentSolution, problemDefinition)
+    
+    return neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
 
 def neighborhoodStrategyToKillRamdomPAAndRedistributeClients(solution, problemDefinition):
     candidateSolution = copy.deepcopy(solution)
     currentPAs = candidateSolution.currentSolution
 
-    paToKillIndex = random.randint(0, len(currentPAs) - 1)
+    pasLenght = len(currentPAs)
+    paToKillIndex = pasLenght if pasLenght == 0 else random.randint(0,  pasLenght - 1)
     paToKill = currentPAs[paToKillIndex]
     currentPAs.remove(paToKill)
 
@@ -370,7 +373,7 @@ def neighborhoodStrategyToKillRamdomPAAndRedistributeClients(solution, problemDe
         if unnalocatedClients is None:
             break
     
-    if percentageOfClientsNotAttended(finalPAsList, problemDefinition): 
+    if percentageOfClientsNotAttendedBellowLimit(finalPAsList, problemDefinition): 
         candidateSolution.currentSolution = finalPAsList
         return candidateSolution
     #  Se tiver algum cliente q n pode ser movido deixa ele sem atendimento mesmo pq tem q atender só 95%
@@ -394,11 +397,21 @@ def neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(soluti
         if unnalocatedClients is None:
             break
     
-    if percentageOfClientsNotAttended(finalPAsList, problemDefinition): 
+    if percentageOfClientsNotAttendedBellowLimit(finalPAsList, problemDefinition): 
         candidateSolution.currentSolution = finalPAsList
         return candidateSolution
     #  Se tiver algum cliente q n pode ser movido deixa ele sem atendimento mesmo pq tem q atender só 95%
     return solution
+
+def neighborhoodStrategyToKillPaWithSmallerCapacity(solution, problemDefinition):
+    candidateSolution = copy.deepcopy(solution)
+    currentPAs = candidateSolution.currentSolution
+
+    pasSortedByCapacity = sorted(currentPAs, key = lambda pa: pa.capacity)
+    paToKill = pasSortedByCapacity[0]
+    currentPAs.remove(paToKill)
+    candidateSolution.currentSolution = currentPAs
+    return candidateSolution
 
 def sortClosestPAs(PAs, selectedPA):
     newPAs =  copy.deepcopy(PAs)
@@ -409,13 +422,16 @@ def neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDef
     candidateSolution = copy.deepcopy(currentSolution)
     currentPAs = candidateSolution.currentSolution
 
-    originPAIndex = random.randint(0, len(currentPAs) - 1)
+    pasLenght = len(currentPAs)
+    originPAIndex = pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
     originPA = currentPAs[originPAIndex]
 
-    destinyPAIndex = random.randint(0, len(currentPAs) - 1)
+    destinyPAIndex = pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
     destinyPA = currentPAs[destinyPAIndex]
 
-    clientToMoveIndex = random.randint(0, len(originPA.clients) - 1)
+    clientsLenght = len(originPA.clients)
+    clientToMoveIndex = clientsLenght if clientsLenght == 0 else random.randint(0, clientsLenght - 1)
+
     clientToMove = originPA.clients[clientToMoveIndex]
 
     if destinyPA.capacity < problemDefinition.paMaxCapacity and getDistanceBetweenPAAndClient(destinyPA, clientToMove) <= problemDefinition.paMaxCoverageRadius:
@@ -431,16 +447,20 @@ def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinit
     candidateSolution = copy.deepcopy(currentSolution)
     currentPAs = candidateSolution.currentSolution
 
-    indexPaA = random.randint(0, len(currentPAs) - 1)
+    pasLenght = len(currentPAs)
+
+    indexPaA = pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
     paA = currentPAs[indexPaA]
 
-    indexPaB = random.randint(0, len(currentPAs) - 1)
+    indexPaB = pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
     paB = currentPAs[indexPaB]
 
-    indexClientA = random.randint(0, len(paA.clients) - 1)
+    clientALen = len(paA.clients)
+    indexClientA =  clientALen if clientALen == 0 else random.randint(0, clientALen - 1)
     clientA = paA.clients[indexClientA]
 
-    indexClientB = random.randint(0, len(paB.clients) - 1)
+    clientBLen = len(paB.clients)
+    indexClientB =  clientBLen if clientBLen == 0 else random.randint(0, clientBLen - 1)
     clientB = paB.clients[indexClientB]
 
     paBNewCapacity = paB.capacity - clientB.band_width + clientA.band_width
@@ -460,6 +480,27 @@ def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinit
     currentPAs[indexPaB] = paB
     candidateSolution.currentSolution = currentPAs
     return candidateSolution
+
+def neighborhoodStrategyRemoveClient(currentSolution, problemDefinition):
+    candidateSolution = copy.deepcopy(currentSolution)
+    currentPAs = candidateSolution.currentSolution
+
+    pasLenght = len(currentPAs)
+    pasRange =  pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
+
+    indexPa = random.randint(0, pasRange)
+    pa = currentPAs[indexPa]
+
+    clientsLenght = len(pa.clients)
+    indexClient = clientsLenght if clientsLenght == 0 else random.randint(0, clientsLenght - 1)
+    client = pa.clients[indexClient]
+
+    pa.clients.remove(client)
+
+    currentPAs[indexPa] = pa
+    candidateSolution.currentSolution = currentPAs
+    return candidateSolution
+
 
 def neighborhoodChange(solution, candidateSolution, neighborhoodStrategyIndex):
 
