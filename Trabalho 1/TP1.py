@@ -132,15 +132,15 @@ def factoryInitialSolutionToMinimizePAsAmount(problemDefinition):
 
 def calculateViolation(solution, problemDefinition):
     R1 = percentageOfClientsNotAttendedBellowLimit(solution.currentSolution, problemDefinition)
-    print("percentageOfClientsNotAttended", R1)
+    #print("percentageOfClientsNotAttended", R1)
     R2 = amountOfPAsAboveCapacity(solution.currentSolution, problemDefinition)
-    print("amountOfPAsAboveCapacity", R2)
+    #print("amountOfPAsAboveCapacity", R2)
     R3 = amountOfPAsClientOutsideMaxRange(solution.currentSolution, problemDefinition)
-    print("amountOfPAsClientOutsideMaxRange", R3)
+    #print("amountOfPAsClientOutsideMaxRange", R3)
     R4 = amountOfReplicatedClients(solution.currentSolution)
-    print("amountOfReplicatedClients", R4)
+    #print("amountOfReplicatedClients", R4)
     R5 = amountOfPAsAboveMaxAmount(solution.currentSolution, problemDefinition)
-    print("amountOfPAsAboveMaxAmount", R5)
+    #print("amountOfPAsAboveMaxAmount", R5)
     return 150 * (R1 + R2 + R3 + R4 + R5)
 
 def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
@@ -151,7 +151,7 @@ def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
     
     newSolution.violation = calculateViolation(solution, problemDefinition)
     
-    newSolution.feasible = solution.violation == 0
+    newSolution.feasible = newSolution.violation == 0
 
     return newSolution
 
@@ -506,9 +506,12 @@ def neighborhoodChange(solution, candidateSolution, neighborhoodStrategyIndex):
 
     # verifica se a solução y deve ser escolhida (Stochastic Ranking)
     def shouldSelectCandidateSolution(solution, candidateSolution, probability = 0.4):
-        if((solution.feasible and candidateSolution.feasible) or random.random() <= probability):
-            return candidateSolution.fitness < solution.fitness
-        
+        if random.random() <= probability:
+            return True
+        if not solution.feasible and candidateSolution.feasible :
+            return True
+        if solution.feasible and  not candidateSolution.feasible:
+            return False
         return candidateSolution.violation < solution.violation
 
     
