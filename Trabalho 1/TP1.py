@@ -43,7 +43,7 @@ class Solution:
         fitness = 0,
         violation = 0,
         feasible = True,
-        currentSolution = None 
+        currentSolution = None
     ):
         self.fitness = fitness
         self.violation = violation
@@ -347,7 +347,7 @@ def shakeToMinimizeDistance(currentSolution, neighborhoodStrategyIndex, problemD
 def shakeToMinimizeAmountOfPAs(currentSolution, neighborhoodStrategyIndex, problemDefinition):
 
     if neighborhoodStrategyIndex == 1:
-        return neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
+        return neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(currentSolution, problemDefinition)
     
     if neighborhoodStrategyIndex == 2:
         return neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
@@ -553,6 +553,36 @@ def plotFirstSolution(bestuptonow):
     print('violation(x) = {:.2f}\n'.format(bestuptonow.vio[0]))
     print('feasible(x) = {}\n'.format(bestuptonow.fea[0]))
 
+def findMinPABestNeighbor(solution, problemDefinition):
+    currentSolution = copy.deepcopy(solution)
+
+    neighborhood1 = neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(currentSolution, problemDefinition)
+    solution1 = objectiveFuntionMinimizeAmountOfPAs(neighborhood1, problemDefinition)
+    cost1 = solution1.fitness + solution1.violation
+
+    neighborhood2 = neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
+    solution2 = objectiveFuntionMinimizeAmountOfPAs(neighborhood2, problemDefinition)
+    cost2 = solution2.fitness + solution2.violation
+    
+    neighborhood3 = neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
+    solution3 = objectiveFuntionMinimizeAmountOfPAs(neighborhood3, problemDefinition)
+    cost3 = solution3.fitness + solution3.violation
+
+    neighborhoods = [neighborhood1, neighborhood2, neighborhood3]
+    costs = [cost1, cost2, cost3]
+
+    bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])
+    return bestNeighbor[0], bestNeighbor[1]
+
+    bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])[0]
+
+def fistImprovementMinimizePas(solution, problemDefinition):
+    currentSolutionCost = solution.fitness + solution.violation
+    bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition)
+    if bestNeighborCost < currentSolutionCost:
+        return bestNeighbor
+    return solution 
+
 def bvnsToMinimizeAmountOfClients(problemDefinition):
     numberOfEvaluatedCandidates = 0
     max_num_sol_avaliadas = 5
@@ -582,7 +612,8 @@ def bvnsToMinimizeAmountOfClients(problemDefinition):
         while k <= kmax:
 
             # Gera uma solução candidata na k-ésima vizinhança de x 
-            y = shakeToMinimizeAmountOfPAs(solution, k, problemDefinition)     
+            y = shakeToMinimizeAmountOfPAs(solution, k, problemDefinition)    
+            y = fistImprovementMinimizePas(solution, problemDefinition) 
             y = objectiveFuntionMinimizeAmountOfPAs(y, problemDefinition)
             numberOfEvaluatedCandidates += 1
 
