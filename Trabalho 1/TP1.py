@@ -123,6 +123,9 @@ def factoryPAs():
             PAs.append(newPA)
     return PAs
 
+def filterPasWithClients(PAs):
+    return list(filter(lambda PA: len(PA.clients) != 0, PAs))
+
 def filterPAsEnabled(PAs):
     return list(filter(lambda PA: PA.capacity != 0, PAs))
 
@@ -421,7 +424,7 @@ def sortClosestPAs(PAs, selectedPA):
 
 def neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition):
     candidateSolution = copy.deepcopy(currentSolution)
-    currentPAs = candidateSolution.currentSolution
+    currentPAs = filterPasWithClients(candidateSolution.currentSolution)
 
     pasLenght = len(currentPAs)
     originPAIndex = pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
@@ -445,7 +448,7 @@ def neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDef
 
 def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition):
     candidateSolution = copy.deepcopy(currentSolution)
-    currentPAs = candidateSolution.currentSolution
+    currentPAs = filterPasWithClients(candidateSolution.currentSolution)
 
     pasLenght = len(currentPAs)
     indexPaA = 0 if pasLenght == 0 else random.randint(0, pasLenght - 1)
@@ -482,7 +485,7 @@ def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinit
 
 def neighborhoodStrategyRemoveClient(currentSolution, problemDefinition):
     candidateSolution = copy.deepcopy(currentSolution)
-    currentPAs = candidateSolution.currentSolution
+    currentPAs = filterPasWithClients(candidateSolution.currentSolution)
 
     pasLenght = len(currentPAs)
     pasRange =  pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
@@ -677,7 +680,7 @@ def bvnsToMinimizeAmountOfClients(problemDefinition):
     
 def bvnsToMinimizeTotalDistance(problemDefinition):
     numberOfEvaluatedCandidates = 0
-    max_num_sol_avaliadas = 5
+    max_num_sol_avaliadas = 5000
     kmax = 3
 
     solution = factoryInitialSolutionToMinimizeTotalDistance(problemDefinition)
