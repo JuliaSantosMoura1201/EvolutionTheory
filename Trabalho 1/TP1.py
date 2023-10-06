@@ -1,4 +1,3 @@
-import rvns
 import csv
 import math
 from functools import reduce
