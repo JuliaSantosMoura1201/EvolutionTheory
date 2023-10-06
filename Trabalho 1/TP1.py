@@ -345,14 +345,14 @@ def shakeToMinimizeAmountOfPAs(currentSolution, neighborhoodStrategyIndex, probl
     
     # Mata um pa e realoca os clientes para os demais
     if neighborhoodStrategyIndex == 1:
-        return neighborhoodStrategyToKillPA(currentSolution, problemDefinition)
+        return neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
     # Passar dois clientes para outro PA aleatório
     if neighborhoodStrategyIndex == 2:
-        return neighborhoodStrategyToKillPA(currentSolution, problemDefinition)
+        return neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
     # Trocar clientes de PAs
-    return neighborhoodStrategyToKillPA(currentSolution, problemDefinition)
+    return neighborhoodStrategyToKillRamdomPA(currentSolution, problemDefinition)
 
-def neighborhoodStrategyToKillPA(solution, problemDefinition):
+def neighborhoodStrategyToKillRamdomPAAndRedistributeClients(solution, problemDefinition):
     candidateSolution = copy.deepcopy(solution)
     currentPAs = candidateSolution.currentSolution
 
@@ -375,7 +375,31 @@ def neighborhoodStrategyToKillPA(solution, problemDefinition):
         return candidateSolution
     #  Se tiver algum cliente q n pode ser movido deixa ele sem atendimento mesmo pq tem q atender só 95%
     return solution
- 
+
+def neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(solution, problemDefinition):
+    candidateSolution = copy.deepcopy(solution)
+    currentPAs = candidateSolution.currentSolution
+
+    pasSortedByCapacity = sorted(currentPAs, key = lambda pa: pa.capacity)
+    paToKill = pasSortedByCapacity[0]
+    currentPAs.remove(paToKill)
+
+    sortedPAs = sortClosestPAs(currentPAs, paToKill)
+
+    finalPAsList = []
+    unnalocatedClients = paToKill.clients
+    for pa in sortedPAs:
+        pa.clients = []
+        finalPAsList, unnalocatedClients = allocateClientesToPAs((finalPAsList, unnalocatedClients), pa, problemDefinition)
+        if unnalocatedClients is None:
+            break
+    
+    if percentageOfClientsNotAttended(finalPAsList, problemDefinition): 
+        candidateSolution.currentSolution = finalPAsList
+        return candidateSolution
+    #  Se tiver algum cliente q n pode ser movido deixa ele sem atendimento mesmo pq tem q atender só 95%
+    return solution
+
 def sortClosestPAs(PAs, selectedPA):
     newPAs =  copy.deepcopy(PAs)
     sorted(newPAs, key = lambda pa: getDistanceBetweenPAs(selectedPA, pa))
