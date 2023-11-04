@@ -45,12 +45,28 @@ class Solution:
         fitness = 0,
         violation = 0,
         feasible = True,
-        currentSolution = None
+        currentSolution = None,
+        singleObjectiveValue = 0,
+        secondObjectiveFitness = 0
     ):
         self.fitness = fitness
         self.violation = violation
         self.feasible = feasible
         self.currentSolution = [] if currentSolution is None else currentSolution
+        self.singleObjectiveValue = 0
+        self.secondObjectiveFitness = 0
+   
+class Archive:
+    def __init__(
+        self,
+        violationFromSecondObjective = None,
+        solution = None,
+        fitnessPenalty = None
+    ):
+        self.violationFromSecondObjective = [] if violationFromSecondObjective is None else violationFromSecondObjective
+        self.solution = [] if solution is None else solution
+        self.fitnessPenalty = [] if fitnessPenalty is None else fitnessPenalty
+  
 
 class Client:
     def __init__(self, x, y, band_width):
@@ -104,6 +120,39 @@ class PA:
             enabled = True
         )
 
+def luana():
+    problemDefinition = ProblemDefinition()
+    problemDefinition.clients = getClients()
+    problemDefinition.PAs = factoryPAs()
+
+    pas_x = [pa.x for pa in problemDefinition.PAs] 
+    pas_y = [pa.y for pa in problemDefinition.PAs]
+    plt.scatter(pas_x, pas_y, label='Possíveis Pas', color='red', marker='o')
+
+    newPas = []
+    for i in range(0, len(problemDefinition.PAs), 16):
+        newPas.append(problemDefinition.PAs[i])
+
+    finalPas = []
+    for i in range(0, len(newPas), 16):
+        finalPas.append(newPas[i])
+
+    newPas_x = [pa.x for pa in finalPas] 
+    newPas_y = [pa.y for pa in finalPas]
+    plt.scatter(newPas_x, newPas_y, label='Pas selecionados', color='green', marker='o')
+
+    clients_x = [client.x for client in problemDefinition.clients] 
+    clients_y = [client.y for client in problemDefinition.clients]
+    #plt.scatter(clients_x, clients_y, label='Clientes', color='blue', marker='o')
+
+    plt.xlim(0, 400)
+    plt.ylim(0, 400)
+
+    plt.xlabel('Eixo X')
+    plt.ylabel('Eixo Y')
+
+    plt.show()
+
 def getClients(): 
     clients = []
     with open('clientes.csv', mode='r') as clientes_csv:
@@ -153,12 +202,19 @@ def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
     enabledPAs = filterPAsEnabled(newSolution.currentSolution)
 
     newSolution.fitness = len(enabledPAs)
+    newSolution.secondObjectiveFitness = getTotalDistanceSumBetweenPAsAndClients(enabledPAs)
     
     newSolution.violation = calculateViolation(solution, problemDefinition)
     
     newSolution.feasible = newSolution.violation == 0
 
     return newSolution
+
+def pw(solution, problemDefinition, weights):
+    newSolution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
+    newSolution.singleObjectiveValue = weights[0] * newSolution.fitness + weights[1] * newSolution.secondObjectiveFitness
+    return newSolution
+
 
 def factoryInitialSolutionToMinimizeTotalDistance(problemDefinition):
     solution = Solution()
@@ -585,19 +641,19 @@ def firstImprovementMinimizeDist(solution, problemDefinition):
         return bestNeighbor
     return solution 
 
-def findMinPABestNeighbor(solution, problemDefinition):
+def findMinPABestNeighbor(solution, problemDefinition, weights):
     currentSolution = copy.deepcopy(solution)
 
     neighborhood1 = neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(currentSolution, problemDefinition)
-    solution1 = objectiveFuntionMinimizeAmountOfPAs(neighborhood1, problemDefinition)
+    solution1 = pw(neighborhood1, problemDefinition, weights)
     cost1 = solution1.fitness + solution1.violation
 
     neighborhood2 = neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
-    solution2 = objectiveFuntionMinimizeAmountOfPAs(neighborhood2, problemDefinition)
+    solution2 = pw(neighborhood2, problemDefinition, weights)
     cost2 = solution2.fitness + solution2.violation
     
     neighborhood3 = neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
-    solution3 = objectiveFuntionMinimizeAmountOfPAs(neighborhood3, problemDefinition)
+    solution3 = pw(neighborhood3, problemDefinition, weights)
     cost3 = solution3.fitness + solution3.violation
 
     neighborhoods = [neighborhood1, neighborhood2, neighborhood3]
@@ -608,14 +664,14 @@ def findMinPABestNeighbor(solution, problemDefinition):
 
     bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])[0]
 
-def firstImprovementMinimizePas(solution, problemDefinition):
+def firstImprovementMinimizePas(solution, problemDefinition, weights):
     currentSolutionCost = solution.fitness + solution.violation
-    bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition)
+    bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition, weights)
     if bestNeighborCost < currentSolutionCost:
         return bestNeighbor
     return solution 
 
-def bvnsToMinimizeAmountOfClients(problemDefinition):
+def bvnsToMinimizeAmountOfClients(problemDefinition, weights):
     numberOfEvaluatedCandidates = 0
     max_num_sol_avaliadas = 5
     kmax = 3
@@ -625,19 +681,6 @@ def bvnsToMinimizeAmountOfClients(problemDefinition):
 
     numberOfEvaluatedCandidates += 1
 
-    # Armazena dados para plot
-    historico = History()
-    historico.fit.append(solution.fitness)
-    historico.sol.append(solution.currentSolution)
-    historico.fea.append(solution.feasible)
-    historico.vio.append(solution.violation)
-
-    bestuptonow = History()
-    bestuptonow.fit.append(solution.fitness)
-    bestuptonow.sol.append(solution.currentSolution)
-    bestuptonow.fea.append(solution.feasible)
-    bestuptonow.vio.append(solution.violation)
-
     while numberOfEvaluatedCandidates < max_num_sol_avaliadas:
 
         k = 1
@@ -645,38 +688,14 @@ def bvnsToMinimizeAmountOfClients(problemDefinition):
 
             # Gera uma solução candidata na k-ésima vizinhança de x 
             y = shakeToMinimizeAmountOfPAs(solution, k, problemDefinition)    
-            y = firstImprovementMinimizePas(solution, problemDefinition) 
-            y = objectiveFuntionMinimizeAmountOfPAs(y, problemDefinition)
+            y = firstImprovementMinimizePas(solution, problemDefinition, weights) 
+            y = pw(y, problemDefinition, weights)
             numberOfEvaluatedCandidates += 1
 
             # Atualiza solução corrente e estrutura de vizinhança (se necessário)
             solution, k = neighborhoodChange(solution, y, k)
-
-            # Armazena dados para plot
-            historico.fit.append(solution.fitness)
-            historico.sol.append(solution.currentSolution)
-            historico.fea.append(solution.feasible)  
-            historico.vio.append(solution.violation)
-
-            # Mantém registro da melhor solução encontrada até então
-            condition0 = solution.feasible == True and bestuptonow.fea[-1] == False
-            condition1 = solution.feasible == True and bestuptonow.fea[-1] == True and solution.fitness < bestuptonow.fit[-1]
-            condition2 = solution.feasible == False and bestuptonow.fea[-1] == False and solution.violation < bestuptonow.vio[-1]
-            if condition0 or condition1 or condition2 == True:
-                bestuptonow.fit.append(solution.fitness)
-                bestuptonow.sol.append(solution.currentSolution)
-                bestuptonow.fea.append(solution.feasible)
-                bestuptonow.vio.append(solution.violation)
-            else:
-                bestuptonow.fit.append(bestuptonow.fit[-1])
-                bestuptonow.sol.append(bestuptonow.sol[-1])
-                bestuptonow.fea.append(bestuptonow.fea[-1])
-                bestuptonow.vio.append(bestuptonow.vio[-1])
-                    
-    #plotBestSolution(bestuptonow)
-    #plotFirstSolution(bestuptonow)
-    #plotSolution(historico, bestuptonow)
-    return bestuptonow
+    
+    return solution
     
 def bvnsToMinimizeTotalDistance(problemDefinition):
     numberOfEvaluatedCandidates = 0
@@ -818,4 +837,36 @@ def main():
     printResults(bestSolutionMinDist)
     plotBestSolutions(bestSolutionMinDist)
 
-main()
+#main()
+
+def pwStrategy():
+
+    problemDefinition = ProblemDefinition()
+    problemDefinition.clients = getClients()
+    problemDefinition.PAs = factoryPAs()
+
+    amountOfParetoOptimalSolutions = 20
+
+    objectiveOneFitnessHistory = []
+    objectiveTwoFitnessHistory = []
+    for i in range(amountOfParetoOptimalSolutions):
+        weights = np.random.random(size = 2)
+        normalizedWeights = weights/sum(weights)
+
+        solution = bvnsToMinimizeAmountOfClients(problemDefinition, weights)
+        objectiveOneFitnessHistory.append(solution.fitness)
+        objectiveTwoFitnessHistory.append(solution.secondObjectiveFitness)
+
+    plt.plot(objectiveOneFitnessHistory, objectiveTwoFitnessHistory, 'r.')
+    print(objectiveTwoFitnessHistory)
+    print(objectiveOneFitnessHistory)
+    plt.legend(['Fronteira Pareto Estimada'])
+    plt.title('Soluções estimadas')
+    plt.xlabel('f1(x)')
+    plt.ylabel('f2(x)')
+    plt.show()
+
+pwStrategy()
+
+
+
