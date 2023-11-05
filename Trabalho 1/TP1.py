@@ -30,6 +30,7 @@ class ProblemDefinition:
     paMaxCoverageRadius = 70
     maxAmountOfPAs = 25
     numberOfPlacesToInstallPas = 400/5
+    epsilon = 11500
 
     def __init__(
         self,
@@ -213,6 +214,15 @@ def objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition):
 def pw(solution, problemDefinition, weights):
     newSolution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
     newSolution.singleObjectiveValue = weights[0] * newSolution.fitness + weights[1] * newSolution.secondObjectiveFitness
+    return newSolution
+
+#weights n é usado, mas queremos manter a mesma assinatura para pe e pw
+def pe(solution, problemDefinition, weights):
+    newSolution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
+    violation = newSolution.secondObjectiveFitness - problemDefinition.epsilon
+    violation = violation if(violation > 0) else 0
+    newSolution.violation = newSolution.violation + 150 * violation
+    newSolution.singleObjectiveValue = newSolution.fitness + newSolution.violation
     return newSolution
 
 
@@ -641,19 +651,19 @@ def firstImprovementMinimizeDist(solution, problemDefinition):
         return bestNeighbor
     return solution 
 
-def findMinPABestNeighbor(solution, problemDefinition, weights):
+def findMinPABestNeighbor(solution, problemDefinition, weights, objFunction):
     currentSolution = copy.deepcopy(solution)
 
     neighborhood1 = neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(currentSolution, problemDefinition)
-    solution1 = pw(neighborhood1, problemDefinition, weights)
+    solution1 = objFunction(neighborhood1, problemDefinition, weights)
     cost1 = solution1.fitness + solution1.violation
 
     neighborhood2 = neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
-    solution2 = pw(neighborhood2, problemDefinition, weights)
+    solution2 = objFunction(neighborhood2, problemDefinition, weights)
     cost2 = solution2.fitness + solution2.violation
     
     neighborhood3 = neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
-    solution3 = pw(neighborhood3, problemDefinition, weights)
+    solution3 = objFunction(neighborhood3, problemDefinition, weights)
     cost3 = solution3.fitness + solution3.violation
 
     neighborhoods = [neighborhood1, neighborhood2, neighborhood3]
@@ -664,14 +674,14 @@ def findMinPABestNeighbor(solution, problemDefinition, weights):
 
     bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])[0]
 
-def firstImprovementMinimizePas(solution, problemDefinition, weights):
+def firstImprovementMinimizePas(solution, problemDefinition, weights, objFunction):
     currentSolutionCost = solution.fitness + solution.violation
-    bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition, weights)
+    bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition, weights, objFunction)
     if bestNeighborCost < currentSolutionCost:
         return bestNeighbor
     return solution 
 
-def bvnsToMinimizeAmountOfClients(problemDefinition, weights):
+def bvnsToMinimizeAmountOfClients(problemDefinition, weights, objFunction):
     numberOfEvaluatedCandidates = 0
     max_num_sol_avaliadas = 5
     kmax = 3
@@ -688,8 +698,8 @@ def bvnsToMinimizeAmountOfClients(problemDefinition, weights):
 
             # Gera uma solução candidata na k-ésima vizinhança de x 
             y = shakeToMinimizeAmountOfPAs(solution, k, problemDefinition)    
-            y = firstImprovementMinimizePas(solution, problemDefinition, weights) 
-            y = pw(y, problemDefinition, weights)
+            y = firstImprovementMinimizePas(solution, problemDefinition, weights, objFunction) 
+            y = objFunction(y, problemDefinition, weights)
             numberOfEvaluatedCandidates += 1
 
             # Atualiza solução corrente e estrutura de vizinhança (se necessário)
@@ -837,10 +847,25 @@ def main():
     printResults(bestSolutionMinDist)
     plotBestSolutions(bestSolutionMinDist)
 
-#main()
-
+def nonDominatedSolutions(objectiveOneFitnessHistory, objectiveTwoFitnessHistory):
+    nonDominatedSolutionsF1  = []
+    nonDominatedSolutionsF2  = []
+    for i in range(len(objectiveOneFitnessHistory)):
+        currentSolution = (objectiveOneFitnessHistory[i], objectiveTwoFitnessHistory[i])
+        print("Current Solution", currentSolution)
+        dominated = False
+        for j in range(len(objectiveOneFitnessHistory)):
+            print("Comparando com: ", (objectiveOneFitnessHistory[j], objectiveTwoFitnessHistory[j]))
+            if (currentSolution[0] > objectiveOneFitnessHistory[j]) and (currentSolution[1] > objectiveTwoFitnessHistory[j]):
+                dominated = True
+        if(not dominated):
+            nonDominatedSolutionsF1.append(objectiveOneFitnessHistory[i])
+            nonDominatedSolutionsF2.append(objectiveTwoFitnessHistory[i])
+        print("Dominado: ", dominated)
+        print("")
+    return nonDominatedSolutionsF1, nonDominatedSolutionsF2
+        
 def pwStrategy():
-
     problemDefinition = ProblemDefinition()
     problemDefinition.clients = getClients()
     problemDefinition.PAs = factoryPAs()
@@ -853,19 +878,48 @@ def pwStrategy():
         weights = np.random.random(size = 2)
         normalizedWeights = weights/sum(weights)
 
-        solution = bvnsToMinimizeAmountOfClients(problemDefinition, weights)
+        solution = bvnsToMinimizeAmountOfClients(problemDefinition, weights, pw)
         objectiveOneFitnessHistory.append(solution.fitness)
         objectiveTwoFitnessHistory.append(solution.secondObjectiveFitness)
 
+    nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(objectiveOneFitnessHistory, objectiveTwoFitnessHistory)
+    
     plt.plot(objectiveOneFitnessHistory, objectiveTwoFitnessHistory, 'r.')
-    print(objectiveTwoFitnessHistory)
-    print(objectiveOneFitnessHistory)
-    plt.legend(['Fronteira Pareto Estimada'])
+    plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)        
+    plt.legend(['Soluções estimadas', 'Fronteira Pareto Estimada'])
     plt.title('Soluções estimadas')
     plt.xlabel('f1(x)')
     plt.ylabel('f2(x)')
     plt.show()
 
+def peStrategy():
+    problemDefinition = ProblemDefinition()
+    problemDefinition.clients = getClients()
+    problemDefinition.PAs = factoryPAs()
+
+    amountOfParetoOptimalSolutions = 20
+
+    solution = factoryInitialSolutionToMinimizePAsAmount(problemDefinition)
+    solution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
+
+    objectiveOneFitnessHistory = []
+    objectiveTwoFitnessHistory = []
+    for i in range(amountOfParetoOptimalSolutions):
+        solution = bvnsToMinimizeAmountOfClients(problemDefinition, [1, 1], pe)
+        objectiveOneFitnessHistory.append(solution.fitness)
+        objectiveTwoFitnessHistory.append(solution.secondObjectiveFitness)
+    
+    nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(objectiveOneFitnessHistory, objectiveTwoFitnessHistory)
+
+    plt.plot(objectiveOneFitnessHistory, objectiveTwoFitnessHistory, 'r.')
+    plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)        
+    plt.legend(['Soluções estimadas', 'Fronteira Pareto Estimada'])
+    plt.title('Soluções estimadas')
+    plt.xlabel('f1(x)')
+    plt.ylabel('f2(x)')
+    plt.show()
+
+#peStrategy()
 pwStrategy()
 
 
