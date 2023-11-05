@@ -55,19 +55,7 @@ class Solution:
         self.feasible = feasible
         self.currentSolution = [] if currentSolution is None else currentSolution
         self.singleObjectiveValue = 0
-        self.secondObjectiveFitness = 0
-   
-class Archive:
-    def __init__(
-        self,
-        violationFromSecondObjective = None,
-        solution = None,
-        fitnessPenalty = None
-    ):
-        self.violationFromSecondObjective = [] if violationFromSecondObjective is None else violationFromSecondObjective
-        self.solution = [] if solution is None else solution
-        self.fitnessPenalty = [] if fitnessPenalty is None else fitnessPenalty
-  
+        self.secondObjectiveFitness = 0 
 
 class Client:
     def __init__(self, x, y, band_width):
@@ -847,22 +835,18 @@ def main():
     printResults(bestSolutionMinDist)
     plotBestSolutions(bestSolutionMinDist)
 
-def nonDominatedSolutions(objectiveOneFitnessHistory, objectiveTwoFitnessHistory):
+def nonDominatedSolutions(history):
     nonDominatedSolutionsF1  = []
     nonDominatedSolutionsF2  = []
-    for i in range(len(objectiveOneFitnessHistory)):
-        currentSolution = (objectiveOneFitnessHistory[i], objectiveTwoFitnessHistory[i])
-        print("Current Solution", currentSolution)
+    for i in range(len(history)):
+        currentSolution = (history[i].fitness, history[i].secondObjectiveFitness)
         dominated = False
         for j in range(len(objectiveOneFitnessHistory)):
-            print("Comparando com: ", (objectiveOneFitnessHistory[j], objectiveTwoFitnessHistory[j]))
-            if (currentSolution[0] > objectiveOneFitnessHistory[j]) and (currentSolution[1] > objectiveTwoFitnessHistory[j]):
+            if (currentSolution[0] > history[j].fitness) and (currentSolution[1] > history[j].secondObjectiveFitness):
                 dominated = True
         if(not dominated):
-            nonDominatedSolutionsF1.append(objectiveOneFitnessHistory[i])
-            nonDominatedSolutionsF2.append(objectiveTwoFitnessHistory[i])
-        print("Dominado: ", dominated)
-        print("")
+            nonDominatedSolutionsF1.append(currentSolution[0])
+            nonDominatedSolutionsF2.append(currentSolution[1])
     return nonDominatedSolutionsF1, nonDominatedSolutionsF2
         
 def pwStrategy():
@@ -872,16 +856,16 @@ def pwStrategy():
 
     amountOfParetoOptimalSolutions = 20
 
-    objectiveOneFitnessHistory = []
-    objectiveTwoFitnessHistory = []
+    history = []
     for i in range(amountOfParetoOptimalSolutions):
         weights = np.random.random(size = 2)
         normalizedWeights = weights/sum(weights)
 
         solution = bvnsToMinimizeAmountOfClients(problemDefinition, weights, pw)
-        objectiveOneFitnessHistory.append(solution.fitness)
-        objectiveTwoFitnessHistory.append(solution.secondObjectiveFitness)
+        history.append(solution)
 
+    objectiveOneFitnessHistory = [solution.fitness for solution in history]
+    objectiveTwoFitnessHistory = [solution.secondObjectiveFitness for solution in history]
     nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(objectiveOneFitnessHistory, objectiveTwoFitnessHistory)
     
     plt.plot(objectiveOneFitnessHistory, objectiveTwoFitnessHistory, 'r.')
