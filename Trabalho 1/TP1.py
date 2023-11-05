@@ -30,7 +30,7 @@ class ProblemDefinition:
     paMaxCoverageRadius = 70
     maxAmountOfPAs = 25
     numberOfPlacesToInstallPas = 400/5
-    epsilon = 11500
+    epsilon = 11900
 
     def __init__(
         self,
@@ -442,6 +442,9 @@ def neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(soluti
     currentPAs = candidateSolution.currentSolution
 
     pasSortedByCapacity = sorted(currentPAs, key = lambda pa: pa.capacity)
+    if pasSortedByCapacity is None:
+        return solution
+
     paToKill = pasSortedByCapacity[0]
     currentPAs.remove(paToKill)
 
@@ -849,15 +852,20 @@ def nonDominatedSolutions(history):
             nonDominatedSolutionsF2.append(currentSolution[1])
     return nonDominatedSolutionsF1, nonDominatedSolutionsF2
 
-def unfeasibleSolutions(history):
+def mapSolutions(history):
     unfeasibleSolutionsF1 = []
     unfeasibleSolutionsF2 = []
+    feasibleSolutionsF1 = []
+    feasibleSolutionsF2 = []
     for solution in history:
         print(solution.violation)
         if solution.violation > 0:
             unfeasibleSolutionsF1.append(solution.fitness)
             unfeasibleSolutionsF2.append(solution.secondObjectiveFitness)
-    return unfeasibleSolutionsF1, unfeasibleSolutionsF2
+        else: 
+            feasibleSolutionsF1.append(solution.fitness)
+            feasibleSolutionsF2.append(solution.secondObjectiveFitness)
+    return unfeasibleSolutionsF1, unfeasibleSolutionsF2, feasibleSolutionsF1, feasibleSolutionsF2
 
 def pwStrategy():
     problemDefinition = ProblemDefinition()
@@ -874,16 +882,14 @@ def pwStrategy():
         solution = bvnsToMinimizeAmountOfClients(problemDefinition, weights, pw)
         history.append(solution)
 
-    objectiveOneFitnessHistory = [solution.fitness for solution in history]
-    objectiveTwoFitnessHistory = [solution.secondObjectiveFitness for solution in history]
     nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(history)
-    unfeasibleSolutionsF1, unfeasibleSolutionsF2 = unfeasibleSolutions(history)
-    
-    plt.plot(objectiveOneFitnessHistory, objectiveTwoFitnessHistory, 'r.')
+    unfeasibleSolutionsF1, unfeasibleSolutionsF2, feasibleSolutionsF1, feasibleSolutionsF2 = mapSolutions(history)
+
     plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)     
     plt.plot(unfeasibleSolutionsF1, unfeasibleSolutionsF2,'b.')   
-    plt.legend(['Soluções Factíveis', 'Fronteira Pareto Estimada','Soluções Inviáveis',])
-    plt.title('Soluções estimadas')
+    plt.plot(feasibleSolutionsF1, feasibleSolutionsF2, 'r.')
+    plt.legend(['Fronteira Pareto Estimada','Soluções Inviáveis', 'Soluções Factíveis'])
+    plt.title('Soluções estimadas - pw')
     plt.xlabel('f1(x)')
     plt.ylabel('f2(x)')
     plt.show()
@@ -898,25 +904,30 @@ def peStrategy():
     solution = factoryInitialSolutionToMinimizePAsAmount(problemDefinition)
     solution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
 
-    objectiveOneFitnessHistory = []
-    objectiveTwoFitnessHistory = []
+    history = []
     for i in range(amountOfParetoOptimalSolutions):
         solution = bvnsToMinimizeAmountOfClients(problemDefinition, [1, 1], pe)
-        objectiveOneFitnessHistory.append(solution.fitness)
-        objectiveTwoFitnessHistory.append(solution.secondObjectiveFitness)
+        history.append(solution)
     
-    nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(objectiveOneFitnessHistory, objectiveTwoFitnessHistory)
+    nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(history)
+    unfeasibleSolutionsF1, unfeasibleSolutionsF2, feasibleSolutionsF1, feasibleSolutionsF2 = mapSolutions(history)
 
-    plt.plot(objectiveOneFitnessHistory, objectiveTwoFitnessHistory, 'r.')
-    plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)        
-    plt.legend(['Soluções estimadas', 'Fronteira Pareto Estimada'])
-    plt.title('Soluções estimadas')
+    plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)     
+    plt.plot(unfeasibleSolutionsF1, unfeasibleSolutionsF2,'b.')   
+    plt.plot(feasibleSolutionsF1, feasibleSolutionsF2, 'r.')
+    plt.legend(['Fronteira Pareto Estimada','Soluções Inviáveis', 'Soluções Factíveis'])
+    plt.title('Soluções estimadas - pe')
     plt.xlabel('f1(x)')
     plt.ylabel('f2(x)')
     plt.show()
 
-#peStrategy()
-pwStrategy()
+def multiObjectiveMain():
+    for i in range(5):
+        peStrategy()
 
+    for i in range(5):
+        pwStrategy()
+
+multiObjectiveMain()
 
 
