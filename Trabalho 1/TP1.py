@@ -841,14 +841,24 @@ def nonDominatedSolutions(history):
     for i in range(len(history)):
         currentSolution = (history[i].fitness, history[i].secondObjectiveFitness)
         dominated = False
-        for j in range(len(objectiveOneFitnessHistory)):
+        for j in range(len(history)):
             if (currentSolution[0] > history[j].fitness) and (currentSolution[1] > history[j].secondObjectiveFitness):
                 dominated = True
         if(not dominated):
             nonDominatedSolutionsF1.append(currentSolution[0])
             nonDominatedSolutionsF2.append(currentSolution[1])
     return nonDominatedSolutionsF1, nonDominatedSolutionsF2
-        
+
+def unfeasibleSolutions(history):
+    unfeasibleSolutionsF1 = []
+    unfeasibleSolutionsF2 = []
+    for solution in history:
+        print(solution.violation)
+        if solution.violation > 0:
+            unfeasibleSolutionsF1.append(solution.fitness)
+            unfeasibleSolutionsF2.append(solution.secondObjectiveFitness)
+    return unfeasibleSolutionsF1, unfeasibleSolutionsF2
+
 def pwStrategy():
     problemDefinition = ProblemDefinition()
     problemDefinition.clients = getClients()
@@ -866,11 +876,13 @@ def pwStrategy():
 
     objectiveOneFitnessHistory = [solution.fitness for solution in history]
     objectiveTwoFitnessHistory = [solution.secondObjectiveFitness for solution in history]
-    nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(objectiveOneFitnessHistory, objectiveTwoFitnessHistory)
+    nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(history)
+    unfeasibleSolutionsF1, unfeasibleSolutionsF2 = unfeasibleSolutions(history)
     
     plt.plot(objectiveOneFitnessHistory, objectiveTwoFitnessHistory, 'r.')
-    plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)        
-    plt.legend(['Soluções estimadas', 'Fronteira Pareto Estimada'])
+    plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)     
+    plt.plot(unfeasibleSolutionsF1, unfeasibleSolutionsF2,'b.')   
+    plt.legend(['Soluções Factíveis', 'Fronteira Pareto Estimada','Soluções Inviáveis',])
     plt.title('Soluções estimadas')
     plt.xlabel('f1(x)')
     plt.ylabel('f2(x)')
