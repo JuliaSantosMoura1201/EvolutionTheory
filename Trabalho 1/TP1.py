@@ -431,11 +431,7 @@ def neighborhoodStrategyToKillRamdomPAAndRedistributeClients(solution, problemDe
         if unnalocatedClients is None:
             break
     
-    if percentageOfClientsNotAttendedBellowLimit(finalPAsList, problemDefinition): 
-        candidateSolution.currentSolution = finalPAsList
-        return candidateSolution
-    #  Se tiver algum cliente q n pode ser movido deixa ele sem atendimento mesmo pq tem q atender só 95%
-    return solution
+    return candidateSolution
 
 def neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(solution, problemDefinition):
     candidateSolution = copy.deepcopy(solution)
@@ -458,11 +454,7 @@ def neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(soluti
         if unnalocatedClients is None:
             break
     
-    if percentageOfClientsNotAttendedBellowLimit(finalPAsList, problemDefinition): 
-        candidateSolution.currentSolution = finalPAsList
-        return candidateSolution
-    #  Se tiver algum cliente q n pode ser movido deixa ele sem atendimento mesmo pq tem q atender só 95%
-    return solution
+    return candidateSolution
 
 def neighborhoodStrategyToKillPaWithSmallerCapacity(solution, problemDefinition):
     candidateSolution = copy.deepcopy(solution)
@@ -929,5 +921,6 @@ def multiObjectiveMain():
         pwStrategy()
 
 multiObjectiveMain()
+
 
 
