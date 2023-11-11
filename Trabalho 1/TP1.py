@@ -642,8 +642,6 @@ def findMinDistBestNeighbor(solution, problemDefinition):
     bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])
     return bestNeighbor[0], bestNeighbor[1]
 
-    bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])[0]
-
 def firstImprovementMinimizeDist(solution, problemDefinition):
     currentSolutionCost = solution.fitness + solution.violation
     bestNeighbor, bestNeighborCost = findMinDistBestNeighbor(solution, problemDefinition)
@@ -672,9 +670,47 @@ def findMinPABestNeighbor(solution, problemDefinition, weights, objFunction):
     bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])
     return bestNeighbor[0], bestNeighbor[1]
 
-    bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])[0]
-
 def firstImprovementMinimizePas(solution, problemDefinition, weights, objFunction):
+    currentSolutionCost = solution.singleObjectiveValue + solution.violation
+    bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition, weights, objFunction)
+    if bestNeighborCost < currentSolutionCost:
+        return bestNeighbor
+    return solution 
+
+def findBestNeighbor(solution, problemDefinition, weights, objFunction):
+    currentSolution = copy.deepcopy(solution)
+
+    neighborhood1 = neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(currentSolution, problemDefinition)
+    solution1 = objFunction(neighborhood1, problemDefinition, weights)
+    cost1 = solution1.singleObjectiveValue + solution1.violation
+
+    neighborhood2 = neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
+    solution2 = objFunction(neighborhood2, problemDefinition, weights)
+    cost2 = solution2.singleObjectiveValue + solution2.violation
+    
+    neighborhood3 = neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
+    solution3 = objFunction(neighborhood3, problemDefinition, weights)
+    cost3 = solution3.singleObjectiveValue + solution3.violation
+
+    neighborhood4 = neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
+    solution4 = objFunction(neighborhood4, problemDefinition, weights)
+    cost4 = solution4.singleObjectiveValue + solution4.violation
+
+    neighborhood5 = neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
+    solution5 = objFunction(neighborhood5, problemDefinition, weights)
+    cost5 = solution5.singleObjectiveValue + solution5.violation
+    
+    neighborhood6 = neighborhoodStrategyRemoveClient(currentSolution, problemDefinition)
+    solution6 = objFunction(neighborhood6, problemDefinition, weights)
+    cost6 = solution6.singleObjectiveValue + solution6.violation
+
+    neighborhoods = [neighborhood1, neighborhood2, neighborhood3, neighborhood4, neighborhood5, neighborhood6]
+    costs = [cost1, cost2, cost3, cost4, cost5, cost6]
+
+    bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])
+    return bestNeighbor[0]
+
+def firstImprovement(solution, problemDefinition, weights, objFunction):
     currentSolutionCost = solution.singleObjectiveValue + solution.violation
     bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition, weights, objFunction)
     if bestNeighborCost < currentSolutionCost:
@@ -698,7 +734,7 @@ def bvnsToMinimizeAmountOfClients(problemDefinition, weights, objFunction):
 
             # Gera uma solução candidata na k-ésima vizinhança de x 
             y = shake(solution, k, problemDefinition)    
-            y = firstImprovementMinimizePas(solution, problemDefinition, weights, objFunction) 
+            y = findBestNeighbor(solution, problemDefinition, weights, objFunction) 
             y = objFunction(y, problemDefinition, weights)
             numberOfEvaluatedCandidates += 1
 
