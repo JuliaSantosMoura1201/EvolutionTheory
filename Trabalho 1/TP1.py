@@ -204,7 +204,7 @@ def pw(solution, problemDefinition, weights):
     newSolution.singleObjectiveValue = weights[0] * newSolution.fitness + weights[1] * newSolution.secondObjectiveFitness
     return newSolution
 
-#weights n é usado, mas queremos manter a mesma assinatura para pe e pw
+# weights n é usado, mas queremos manter a mesma assinatura para pe e pw
 def pe(solution, problemDefinition, weights):
     newSolution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
     violation = newSolution.secondObjectiveFitness - problemDefinition.epsilon
@@ -212,7 +212,6 @@ def pe(solution, problemDefinition, weights):
     newSolution.violation = newSolution.violation + 150 * violation
     newSolution.singleObjectiveValue = newSolution.fitness + newSolution.violation
     return newSolution
-
 
 def factoryInitialSolutionToMinimizeTotalDistance(problemDefinition):
     solution = Solution()
@@ -391,6 +390,24 @@ def readClients(clients):
 
 def getTotalDistanceSumBetweenPAsAndClients(PAs):
     return sum(sum(getDistanceBetweenPAAndClient(pa, client) for client in pa.clients) for pa in PAs)
+
+def shake(currentSolution, neighborhoodStrategyIndex, problemDefinition):
+    if neighborhoodStrategyIndex == 1:
+       return neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
+    
+    if neighborhoodStrategyIndex == 2:
+        return neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
+
+    if neighborhoodStrategyIndex == 3:
+        return neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(currentSolution, problemDefinition)
+    
+    if neighborhoodStrategyIndex == 4:
+        return neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
+    
+    if neighborhoodStrategyIndex == 5:
+        return neighborhoodStrategyRemoveClient(currentSolution, problemDefinition)
+    
+    return neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
 
 def shakeToMinimizeDistance(currentSolution, neighborhoodStrategyIndex, problemDefinition):
     
@@ -609,15 +626,15 @@ def findMinDistBestNeighbor(solution, problemDefinition):
 
     neighborhood1 = neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
     solution1 = objectiveFuntionToMinimizeTotalDistance(neighborhood1, problemDefinition)
-    cost1 = solution1.fitness + solution1.violation
+    cost1 = solution1.singleObjectiveValue + solution1.violation
 
     neighborhood2 = neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
     solution2 = objectiveFuntionToMinimizeTotalDistance(neighborhood2, problemDefinition)
-    cost2 = solution2.fitness + solution2.violation
+    cost2 = solution2.singleObjectiveValue + solution2.violation
     
     neighborhood3 = neighborhoodStrategyRemoveClient(currentSolution, problemDefinition)
     solution3 = objectiveFuntionToMinimizeTotalDistance(neighborhood3, problemDefinition)
-    cost3 = solution3.fitness + solution3.violation
+    cost3 = solution3.singleObjectiveValue + solution3.violation
 
     neighborhoods = [neighborhood1, neighborhood2, neighborhood3]
     costs = [cost1, cost2, cost3]
@@ -639,15 +656,15 @@ def findMinPABestNeighbor(solution, problemDefinition, weights, objFunction):
 
     neighborhood1 = neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(currentSolution, problemDefinition)
     solution1 = objFunction(neighborhood1, problemDefinition, weights)
-    cost1 = solution1.fitness + solution1.violation
+    cost1 = solution1.singleObjectiveValue + solution1.violation
 
     neighborhood2 = neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
     solution2 = objFunction(neighborhood2, problemDefinition, weights)
-    cost2 = solution2.fitness + solution2.violation
+    cost2 = solution2.singleObjectiveValue + solution2.violation
     
     neighborhood3 = neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
     solution3 = objFunction(neighborhood3, problemDefinition, weights)
-    cost3 = solution3.fitness + solution3.violation
+    cost3 = solution3.singleObjectiveValue + solution3.violation
 
     neighborhoods = [neighborhood1, neighborhood2, neighborhood3]
     costs = [cost1, cost2, cost3]
@@ -658,7 +675,7 @@ def findMinPABestNeighbor(solution, problemDefinition, weights, objFunction):
     bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])[0]
 
 def firstImprovementMinimizePas(solution, problemDefinition, weights, objFunction):
-    currentSolutionCost = solution.fitness + solution.violation
+    currentSolutionCost = solution.singleObjectiveValue + solution.violation
     bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition, weights, objFunction)
     if bestNeighborCost < currentSolutionCost:
         return bestNeighbor
@@ -680,7 +697,7 @@ def bvnsToMinimizeAmountOfClients(problemDefinition, weights, objFunction):
         while k <= kmax:
 
             # Gera uma solução candidata na k-ésima vizinhança de x 
-            y = shakeToMinimizeAmountOfPAs(solution, k, problemDefinition)    
+            y = shake(solution, k, problemDefinition)    
             y = firstImprovementMinimizePas(solution, problemDefinition, weights, objFunction) 
             y = objFunction(y, problemDefinition, weights)
             numberOfEvaluatedCandidates += 1
@@ -833,16 +850,21 @@ def main():
 def nonDominatedSolutions(history):
     nonDominatedSolutionsF1  = []
     nonDominatedSolutionsF2  = []
+    
     for i in range(len(history)):
         currentSolution = (history[i].fitness, history[i].secondObjectiveFitness)
-        dominated = False
+        dominated = False 
         for j in range(len(history)):
-            if (currentSolution[0] > history[j].fitness) and (currentSolution[1] > history[j].secondObjectiveFitness):
+            if ((currentSolution[0] > history[j].fitness) and (currentSolution[1] >= history[j].secondObjectiveFitness)) or ((currentSolution[1] > history[j].secondObjectiveFitness) and (currentSolution[0] >= history[j].fitness)):
                 dominated = True
-        if(not dominated):
+                break 
+        
+        if not dominated:
             nonDominatedSolutionsF1.append(currentSolution[0])
             nonDominatedSolutionsF2.append(currentSolution[1])
+    
     return nonDominatedSolutionsF1, nonDominatedSolutionsF2
+
 
 def mapSolutions(history):
     unfeasibleSolutionsF1 = []
@@ -914,13 +936,13 @@ def peStrategy():
     plt.show()
 
 def multiObjectiveMain():
-    for i in range(5):
+    #for i in range(5):
         peStrategy()
-
-    for i in range(5):
+    #for i in range(5):
         pwStrategy()
 
 multiObjectiveMain()
+
 
 
 
