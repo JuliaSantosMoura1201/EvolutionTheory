@@ -841,15 +841,19 @@ def main():
 def nonDominatedSolutions(history):
     nonDominatedSolutionsF1  = []
     nonDominatedSolutionsF2  = []
+    
     for i in range(len(history)):
         currentSolution = (history[i].fitness, history[i].secondObjectiveFitness)
-        dominated = False
+        dominated = False 
         for j in range(len(history)):
-            if (currentSolution[0] > history[j].fitness) and (currentSolution[1] > history[j].secondObjectiveFitness):
+            if ((currentSolution[0] > history[j].fitness) and (currentSolution[1] >= history[j].secondObjectiveFitness)) or ((currentSolution[1] > history[j].secondObjectiveFitness) and (currentSolution[0] >= history[j].fitness)):
                 dominated = True
-        if(not dominated):
+                break 
+        
+        if not dominated:
             nonDominatedSolutionsF1.append(currentSolution[0])
             nonDominatedSolutionsF2.append(currentSolution[1])
+    
     return nonDominatedSolutionsF1, nonDominatedSolutionsF2
 
 def mapSolutions(history):
@@ -922,10 +926,11 @@ def peStrategy():
     plt.show()
 
 def multiObjectiveMain():
-    for i in range(5):
+    attempts = 1
+    for i in range(attempts):
         peStrategy()
 
-    for i in range(5):
+    for i in range(attempts):
         pwStrategy()
 
 multiObjectiveMain()
