@@ -175,7 +175,7 @@ def factoryInitialSolutionToMinimizePAsAmount(problemDefinition):
 
 def calculateViolation(solution, problemDefinition):
     R1 = percentageOfClientsNotAttendedBellowLimit(solution.currentSolution, problemDefinition)
-    #print("percentageOfClientsNotAttended", R1)
+    print("percentageOfClientsNotAttended", R1)
     R2 = amountOfPAsAboveCapacity(solution.currentSolution, problemDefinition)
     #print("amountOfPAsAboveCapacity", R2)
     R3 = amountOfPAsClientOutsideMaxRange(solution.currentSolution, problemDefinition)
@@ -209,7 +209,7 @@ def pe(solution, problemDefinition, weights):
     newSolution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
     violation = newSolution.secondObjectiveFitness - problemDefinition.epsilon
     violation = violation if(violation > 0) else 0
-    newSolution.violation = newSolution.violation + 150 * violation
+    newSolution.violation = newSolution.violation + violation
     newSolution.singleObjectiveValue = newSolution.fitness + newSolution.violation
     return newSolution
 
@@ -284,6 +284,23 @@ def amountOfPAsAboveMaxAmount(PAs, problemDefinition):
         return 0
     return amountOfPas - problemDefinition.maxAmountOfPAs
 
+def minimizeMultiObjectiveHeuristic(problemDefinition):
+    
+    def sortPAsForCloseClientsCount(PAs, clients, problemDefinition):        
+            return sorted(PAs, key = lambda pa: len(selectClientsByDistance(pa, clients, problemDefinition)[0]), reverse = True)
+    
+    finalPAsList = []
+    candidatePAs = sortPAsForCloseClientsCount(problemDefinition.PAs, problemDefinition.clients, problemDefinition)
+    unnalocatedClients = [*problemDefinition.clients]
+    while len(unnalocatedClients):
+        # Pega o primeiro PA pq ele sempre é o que tem mais clientes no raio
+        currentPa = candidatePAs.pop(0)
+        # Aloca o máximo de clientes possíveis no PA atual
+        finalPAsList, unnalocatedClients = allocateClientesToPAs((finalPAsList, unnalocatedClients), currentPa, problemDefinition)
+        # Reordena os PAs em função da quantidade de clientes no raio
+        candidatePAs = sortPAsForCloseClientsCount(candidatePAs, unnalocatedClients, problemDefinition)
+    return finalPAsList + candidatePAs
+
 def minimizePAsHeuristic(problemDefinition):
     
     def sortPAsForCloseClientsCount(PAs, clients, problemDefinition):        
@@ -309,6 +326,7 @@ def allocateClientesToPAs(PAsAndClients, currentPA, problemDefinition):
 
     candidateClients, tooFarClients = selectClientsByDistance(currentPA, unnalocatedClients, problemDefinition)
     selectedClients, restClients = selectClientsUntilCapacity(currentPA, candidateClients, problemDefinition)
+    #selectedClients, restClients = selectClientsUntilMaxAmount(currentPA, candidateClients, problemDefinition)
 
     newPA = currentPA.withNewClients(selectedClients)
 
@@ -341,6 +359,20 @@ def selectClientsUntilCapacity(pa, clients, problemDefinition):
 
     for client in clients:
         if capacity + client.band_width > problemDefinition.paMaxCapacity:
+            unselected.append(client)
+        else:
+            selected.append(client)
+            capacity += client.band_width
+
+    return selected, unselected
+
+# Para tentar minimizar a distância, vamos alocar no máximo (256/25 ~= 11) clientes por pa
+def selectClientsUntilMaxAmount(pa, clients, problemDefinition):
+    capacity = pa.capacity
+    selected, unselected = [], []
+
+    for client in clients:
+        if (capacity + client.band_width > problemDefinition.paMaxCapacity) or len(selected) == 30:
             unselected.append(client)
         else:
             selected.append(client)
@@ -393,20 +425,26 @@ def getTotalDistanceSumBetweenPAsAndClients(PAs):
 
 def shake(currentSolution, neighborhoodStrategyIndex, problemDefinition):
     if neighborhoodStrategyIndex == 1:
-       return neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
+        print("neighborhoodStrategyMoveClientToAnotherEnabledPA")
+        return neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDefinition)
     
     if neighborhoodStrategyIndex == 2:
+        print("neighborhoodStrategyExchangeClientBetweenPAs")
         return neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition)
 
     if neighborhoodStrategyIndex == 3:
+        print("neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients")
         return neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(currentSolution, problemDefinition)
     
     if neighborhoodStrategyIndex == 4:
+        print("neighborhoodStrategyToKillRamdomPAAndRedistributeClients")
         return neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
     
     if neighborhoodStrategyIndex == 5:
+        print("neighborhoodStrategyRemoveClient")
         return neighborhoodStrategyRemoveClient(currentSolution, problemDefinition)
     
+    print("neighborhoodStrategyToKillPaWithSmallerCapacity")
     return neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
 
 def shakeToMinimizeDistance(currentSolution, neighborhoodStrategyIndex, problemDefinition):
@@ -434,7 +472,10 @@ def neighborhoodStrategyToKillRamdomPAAndRedistributeClients(solution, problemDe
     currentPAs = candidateSolution.currentSolution
 
     pasLenght = len(currentPAs)
-    paToKillIndex = pasLenght if pasLenght == 0 else random.randint(0,  pasLenght - 1)
+    if(pasLenght == 0):
+        return solution
+
+    paToKillIndex = random.randint(0,  pasLenght - 1)
     paToKill = currentPAs[paToKillIndex]
     currentPAs.remove(paToKill)
 
@@ -448,14 +489,18 @@ def neighborhoodStrategyToKillRamdomPAAndRedistributeClients(solution, problemDe
         if unnalocatedClients is None:
             break
     
-    return candidateSolution
+    if percentageOfClientsNotAttendedBellowLimit(finalPAsList, problemDefinition): 
+        candidateSolution.currentSolution = finalPAsList
+        return candidateSolution
+    #  Se tiver algum cliente q n pode ser movido deixa ele sem atendimento mesmo pq tem q atender só 95%
+    return solution
 
 def neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(solution, problemDefinition):
     candidateSolution = copy.deepcopy(solution)
     currentPAs = candidateSolution.currentSolution
 
     pasSortedByCapacity = sorted(currentPAs, key = lambda pa: pa.capacity)
-    if pasSortedByCapacity is None:
+    if len(pasSortedByCapacity) == 0:
         return solution
 
     paToKill = pasSortedByCapacity[0]
@@ -471,13 +516,20 @@ def neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(soluti
         if unnalocatedClients is None:
             break
     
-    return candidateSolution
+    if percentageOfClientsNotAttendedBellowLimit(finalPAsList, problemDefinition): 
+        candidateSolution.currentSolution = finalPAsList
+        return candidateSolution
+    #  Se tiver algum cliente q n pode ser movido deixa ele sem atendimento mesmo pq tem q atender só 95%
+    return solution
 
 def neighborhoodStrategyToKillPaWithSmallerCapacity(solution, problemDefinition):
     candidateSolution = copy.deepcopy(solution)
     currentPAs = candidateSolution.currentSolution
 
     pasSortedByCapacity = sorted(currentPAs, key = lambda pa: pa.capacity)
+    if len(pasSortedByCapacity) == 0:
+        return solution
+
     paToKill = pasSortedByCapacity[0]
     currentPAs.remove(paToKill)
     candidateSolution.currentSolution = currentPAs
@@ -493,23 +545,31 @@ def neighborhoodStrategyMoveClientToAnotherEnabledPA(currentSolution, problemDef
     currentPAs = filterPasWithClients(candidateSolution.currentSolution)
 
     pasLenght = len(currentPAs)
-    originPAIndex = pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
+    if (pasLenght == 0):
+        return candidateSolution
+
+    originPAIndex = random.randint(0, pasLenght - 1)
     originPA = currentPAs[originPAIndex]
 
-    destinyPAIndex = pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
+    destinyPAIndex = random.randint(0, pasLenght - 1)
     destinyPA = currentPAs[destinyPAIndex]
 
     clientsLenght = len(originPA.clients)
-    clientToMoveIndex = clientsLenght if clientsLenght == 0 else random.randint(0, clientsLenght - 1)
+    if (clientsLenght == 0):
+        return candidateSolution
+
+    clientToMoveIndex = random.randint(0, clientsLenght - 1)
     clientToMove = originPA.clients[clientToMoveIndex]
 
     if destinyPA.capacity < problemDefinition.paMaxCapacity and getDistanceBetweenPAAndClient(destinyPA, clientToMove) <= problemDefinition.paMaxCoverageRadius:
         originPA.clients.remove(clientToMove)
         destinyPA.clients.append(clientToMove)
     
+    print("currentPAs antes da substituição", len(candidateSolution.currentSolution))
     currentPAs[originPAIndex] = originPA
     currentPAs[destinyPAIndex] = destinyPA
     candidateSolution.currentSolution = currentPAs
+    print("currentPAs depois da substituição", len(candidateSolution.currentSolution))
     return candidateSolution
 
 def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinition):
@@ -517,18 +577,24 @@ def neighborhoodStrategyExchangeClientBetweenPAs(currentSolution, problemDefinit
     currentPAs = filterPasWithClients(candidateSolution.currentSolution)
 
     pasLenght = len(currentPAs)
-    indexPaA = 0 if pasLenght == 0 else random.randint(0, pasLenght - 1)
+    if (pasLenght == 0):
+        return candidateSolution
+    indexPaA = random.randint(0, pasLenght - 1)
     paA = currentPAs[indexPaA]
 
-    indexPaB = 0 if pasLenght == 0 else random.randint(0, pasLenght - 1)
+    indexPaB = random.randint(0, pasLenght - 1)
     paB = currentPAs[indexPaB]
 
     clientALen = len(paA.clients)
-    indexClientA = 0 if clientALen == 0 else random.randint(0, clientALen - 1)
+    if (clientALen == 0):
+        return candidateSolution
+    indexClientA = random.randint(0, clientALen - 1)
     clientA = paA.clients[indexClientA]
 
     clientBLen = len(paB.clients)
-    indexClientB = 0 if clientBLen == 0 else random.randint(0, clientBLen - 1)
+    if (clientBLen == 0):
+        return candidateSolution
+    indexClientB = random.randint(0, clientBLen - 1)
     clientB = paB.clients[indexClientB]
 
     paBNewCapacity = paB.capacity - clientB.band_width + clientA.band_width
@@ -554,7 +620,9 @@ def neighborhoodStrategyRemoveClient(currentSolution, problemDefinition):
     currentPAs = filterPasWithClients(candidateSolution.currentSolution)
 
     pasLenght = len(currentPAs)
-    pasRange =  pasLenght if pasLenght == 0 else random.randint(0, pasLenght - 1)
+    if (pasLenght == 0):
+        return candidateSolution
+    pasRange = random.randint(0, pasLenght - 1)
 
     indexPa = random.randint(0, pasRange)
     pa = currentPAs[indexPa]
@@ -720,10 +788,17 @@ def firstImprovement(solution, problemDefinition, weights, objFunction):
 def bvnsToMinimizeAmountOfClients(problemDefinition, weights, objFunction):
     numberOfEvaluatedCandidates = 0
     max_num_sol_avaliadas = 5
-    kmax = 3
+    kmax = 6
+
+    
+    weights = np.random.random(size = 2)
+    normalizedWeights = weights/sum(weights)
 
     solution = factoryInitialSolutionToMinimizePAsAmount(problemDefinition)
-    solution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
+    solution = objFunction(solution, problemDefinition, weights)
+    print("Inititial solution fitness", solution.fitness)
+    print("Inititial solution second objective fitness", solution.secondObjectiveFitness )
+    print("Inititial solution violation", solution.violation )
 
     numberOfEvaluatedCandidates += 1
 
@@ -734,8 +809,11 @@ def bvnsToMinimizeAmountOfClients(problemDefinition, weights, objFunction):
 
             # Gera uma solução candidata na k-ésima vizinhança de x 
             y = shake(solution, k, problemDefinition)    
+            print("Shake violation",  calculateViolation(y, problemDefinition))
             y = findBestNeighbor(solution, problemDefinition, weights, objFunction) 
+            print("findBestNeighbor violation",  calculateViolation(y, problemDefinition))
             y = objFunction(y, problemDefinition, weights)
+            print("objFunctioncl violation",  calculateViolation(y, problemDefinition))
             numberOfEvaluatedCandidates += 1
 
             # Atualiza solução corrente e estrutura de vizinhança (se necessário)
@@ -951,9 +1029,6 @@ def peStrategy():
 
     amountOfParetoOptimalSolutions = 20
 
-    solution = factoryInitialSolutionToMinimizePAsAmount(problemDefinition)
-    solution = objectiveFuntionMinimizeAmountOfPAs(solution, problemDefinition)
-
     history = []
     for i in range(amountOfParetoOptimalSolutions):
         solution = bvnsToMinimizeAmountOfClients(problemDefinition, [1, 1], pe)
@@ -973,12 +1048,30 @@ def peStrategy():
 
 def multiObjectiveMain():
     #for i in range(5):
-        peStrategy()
-    #for i in range(5):
         pwStrategy()
+    #for i in range(5):
+        peStrategy()
+
+def test():
+    problemDefinition = ProblemDefinition()
+    problemDefinition.clients = getClients()
+    problemDefinition.PAs = factoryPAs()
+
+    weights = np.random.random(size = 2)
+    normalizedWeights = weights/sum(weights)
+
+    solution = factoryInitialSolutionToMinimizePAsAmount(problemDefinition)
+    solution = pe(solution, problemDefinition, weights)
+    
+    print("Amount of clients", len(problemDefinition.clients))
+    print("Inititial solution fitness", solution.fitness)
+    for pa in solution.currentSolution:
+        print("Amount of clients in each pa", len(pa.clients))
+    print("Inititial solution second objective fitness", solution.secondObjectiveFitness )
+    print("Inititial solution violation", solution.violation )
+
+    newSolution = neighborhoodStrategyMoveClientToAnotherEnabledPA(solution, problemDefinition)
+
+    print("New violation", calculateViolation(newSolution, problemDefinition))
 
 multiObjectiveMain()
-
-
-
-
