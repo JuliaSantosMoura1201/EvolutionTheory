@@ -48,16 +48,18 @@ class Solution:
         feasible = True,
         currentSolution = None,
         singleObjectiveValue = 0,
-        secondObjectiveFitness = 0
+        secondObjectiveFitness = 0,
+        loadStandardDesviation = 0,
+        pasDistanceStandardDesviation = 0
     ):
         self.fitness = fitness
         self.violation = violation
         self.feasible = feasible
         self.currentSolution = [] if currentSolution is None else currentSolution
-        self.singleObjectiveValue = 0
-        self.secondObjectiveFitness = 0
-        self.loadStandardDesviation = 0
-        self.pasDistanceStandardDesviation = 0
+        self.singleObjectiveValue = singleObjectiveValue
+        self.secondObjectiveFitness = secondObjectiveFitness
+        self.loadStandardDesviation = loadStandardDesviation
+        self.pasDistanceStandardDesviation = pasDistanceStandardDesviation
 
 class Client:
     def __init__(self, x, y, band_width):
@@ -320,37 +322,6 @@ def selectClientsUntilMaxAmount(pa, clients, problemDefinition):
 
     return selected, unselected
 
-def minimizeTotalDistanceBetwenEnabledPAsAndClients(problemDefinition):
-
-    def getSelectedClientsTotalDistance(PA, clients, problemDefinition):
-            selected, unselected = [], []
-            totalDistance = 0
-
-            for client in clients:
-                distance = getDistanceBetweenPAAndClient(PA, client)
-                if distance < problemDefinition.paMaxCoverageRadius:
-                    totalDistance += distance
-                    selected.append(client)
-                else:
-                    unselected.append(client)
-
-            return totalDistance
-
-    def sortPAsForMinDistance(PAs, clients, problemDefinition):
-        return sorted(PAs, key = lambda pa: getSelectedClientsTotalDistance(pa, clients, problemDefinition), reverse = True)
-
-    finalPAsList = []
-    candidatePAs = sortPAsForMinDistance(problemDefinition.PAs, problemDefinition.clients, problemDefinition)
-    unnalocatedClients = [*problemDefinition.clients]
-    while len(unnalocatedClients):
-        # Pega o primeiro PA pq ele sempre é o que tem menor distância relativa
-        currentPa = candidatePAs.pop(0)
-        # Aloca o máximo de clientes possíveis no PA atual
-        finalPAsList, unnalocatedClients = allocateClientesToPAs((finalPAsList, unnalocatedClients), currentPa, problemDefinition)
-        # Reordena os PAs em função da distância relativa
-        candidatePAs = sortPAsForMinDistance(candidatePAs, unnalocatedClients, problemDefinition)
-    return finalPAsList + candidatePAs
-
 def getTotalDistanceSumBetweenPAsAndClients(PAs):
     return sum(sum(getDistanceBetweenPAAndClient(pa, client) for client in pa.clients) for pa in PAs)
 
@@ -558,28 +529,6 @@ def neighborhoodChange(solution, candidateSolution, neighborhoodStrategyIndex):
         return candidateSolution, 1
     return solution, neighborhoodStrategyIndex + 1
 
-def findMinPABestNeighbor(solution, problemDefinition, weights, objFunction):
-    currentSolution = copy.deepcopy(solution)
-
-    neighborhood1 = neighborhoodStrategyToKillPaWithSmallerCapacityAndRedistributeClients(currentSolution, problemDefinition)
-    solution1 = objFunction(neighborhood1, problemDefinition, weights)
-    cost1 = solution1.singleObjectiveValue + solution1.violation
-
-    neighborhood2 = neighborhoodStrategyToKillRamdomPAAndRedistributeClients(currentSolution, problemDefinition)
-    solution2 = objFunction(neighborhood2, problemDefinition, weights)
-    cost2 = solution2.singleObjectiveValue + solution2.violation
-
-    neighborhood3 = neighborhoodStrategyToKillPaWithSmallerCapacity(currentSolution, problemDefinition)
-    solution3 = objFunction(neighborhood3, problemDefinition, weights)
-    cost3 = solution3.singleObjectiveValue + solution3.violation
-
-    neighborhoods = [neighborhood1, neighborhood2, neighborhood3]
-    costs = [cost1, cost2, cost3]
-
-    bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])
-    return bestNeighbor[0], bestNeighbor[1]
-
-
 def findBestNeighbor(solution, problemDefinition, weights, objFunction):
     currentSolution = copy.deepcopy(solution)
 
@@ -613,13 +562,6 @@ def findBestNeighbor(solution, problemDefinition, weights, objFunction):
     bestNeighbor = min(zip(neighborhoods, costs), key=lambda x: x[1])
     return bestNeighbor[0]
 
-def firstImprovement(solution, problemDefinition, weights, objFunction):
-    currentSolutionCost = solution.singleObjectiveValue + solution.violation
-    bestNeighbor, bestNeighborCost = findMinPABestNeighbor(solution, problemDefinition, weights, objFunction)
-    if bestNeighborCost < currentSolutionCost:
-        return bestNeighbor
-    return solution
-
 def bvnsToMinimizeAmountOfClients(problemDefinition, weights, objFunction):
     numberOfEvaluatedCandidates = 0
     max_num_sol_avaliadas = 5
@@ -652,6 +594,7 @@ def bvnsToMinimizeAmountOfClients(problemDefinition, weights, objFunction):
 def nonDominatedSolutions(history):
     nonDominatedSolutionsF1  = []
     nonDominatedSolutionsF2  = []
+    nonDominatedSolutions = []
 
     for i in range(len(history)):
         currentSolution = (history[i].fitness, history[i].secondObjectiveFitness)
@@ -664,8 +607,9 @@ def nonDominatedSolutions(history):
         if not dominated:
             nonDominatedSolutionsF1.append(currentSolution[0])
             nonDominatedSolutionsF2.append(currentSolution[1])
+            nonDominatedSolutions.append(history[i])
 
-    return nonDominatedSolutionsF1, nonDominatedSolutionsF2
+    return nonDominatedSolutionsF1, nonDominatedSolutionsF2, nonDominatedSolutions
 
 
 def mapSolutions(history):
@@ -697,17 +641,19 @@ def pwStrategy():
         solution = bvnsToMinimizeAmountOfClients(problemDefinition, weights, pw)
         history.append(solution)
 
-    nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(history)
+    nonDominatedSolutionsF1, nonDominatedSolutionsF2, nonDominatedSolutionsVector = nonDominatedSolutions(history)
     unfeasibleSolutionsF1, unfeasibleSolutionsF2, feasibleSolutionsF1, feasibleSolutionsF2 = mapSolutions(history)
 
-    plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)
-    plt.plot(unfeasibleSolutionsF1, unfeasibleSolutionsF2,'b.')
-    plt.plot(feasibleSolutionsF1, feasibleSolutionsF2, 'r.')
-    plt.legend(['Fronteira Pareto Estimada','Soluções Inviáveis', 'Soluções Factíveis'])
-    plt.title('Soluções estimadas - pw')
-    plt.xlabel('f1(x)')
-    plt.ylabel('f2(x)')
-    plt.show()
+    #plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)
+    #plt.plot(unfeasibleSolutionsF1, unfeasibleSolutionsF2,'b.')
+    #plt.plot(feasibleSolutionsF1, feasibleSolutionsF2, 'r.')
+    #plt.legend(['Fronteira Pareto Estimada','Soluções Inviáveis', 'Soluções Factíveis'])
+    #plt.title('Soluções estimadas - pw')
+    #plt.xlabel('f1(x)')
+    #plt.ylabel('f2(x)')
+    #plt.show()
+
+    return nonDominatedSolutionsVector
 
 def peStrategy():
     problemDefinition = ProblemDefinition()
@@ -721,22 +667,34 @@ def peStrategy():
         solution = bvnsToMinimizeAmountOfClients(problemDefinition, [1, 1], pe)
         history.append(solution)
 
-    nonDominatedSolutionsF1, nonDominatedSolutionsF2 = nonDominatedSolutions(history)
+    nonDominatedSolutionsF1, nonDominatedSolutionsF2, nonDominatedSolutionsVector = nonDominatedSolutions(history)
     unfeasibleSolutionsF1, unfeasibleSolutionsF2, feasibleSolutionsF1, feasibleSolutionsF2 = mapSolutions(history)
 
-    plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)
-    plt.plot(unfeasibleSolutionsF1, unfeasibleSolutionsF2,'b.')
-    plt.plot(feasibleSolutionsF1, feasibleSolutionsF2, 'r.')
-    plt.legend(['Fronteira Pareto Estimada','Soluções Inviáveis', 'Soluções Factíveis'])
-    plt.title('Soluções estimadas - pe')
-    plt.xlabel('f1(x)')
-    plt.ylabel('f2(x)')
-    plt.show()
+    
+    #plt.plot(nonDominatedSolutionsF1, nonDominatedSolutionsF2,'ks',markerfacecolor='none',markersize=10)
+    #plt.plot(unfeasibleSolutionsF1, unfeasibleSolutionsF2,'b.')
+    #plt.plot(feasibleSolutionsF1, feasibleSolutionsF2, 'r.')
+    #plt.legend(['Fronteira Pareto Estimada','Soluções Inviáveis', 'Soluções Factíveis'])
+    #plt.title('Soluções estimadas - pe')
+    #plt.xlabel('f1(x)')
+    #plt.ylabel('f2(x)')
+    #plt.show()
+
+    return nonDominatedSolutionsVector
+
+def mapSolutionsIntoCriteriaMatriz(solutions):
+  return [[s.fitness, s.secondObjectiveFitness, s.loadStandardDesviation, s.pasDistanceStandardDesviation] for s in solutions]
 
 def multiObjectiveMain():
+    nonDominatedSolutionsVector = []
     #for i in range(5):
-    pwStrategy()
+    nonDominatedSolutionsVector.extend(pwStrategy())
     #for i in range(5):
-    peStrategy()
+    #nonDominatedSolutionsVector.extend(peStrategy())
+    for s in nonDominatedSolutionsVector:
+        print([s.fitness, s.secondObjectiveFitness, s.loadStandardDesviation, s.pasDistanceStandardDesviation])
+    mapSolutionsIntoCriteriaMatriz(nonDominatedSolutionsVector)
+
+
 
 multiObjectiveMain()
